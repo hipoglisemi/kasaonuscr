@@ -1,0 +1,1 @@
+Paraf colabta veri toplayamıyor. Terminal üzerinden veri çekmen gerekiyor.
