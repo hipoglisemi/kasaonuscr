@@ -1,0 +1,72 @@
+name: Kartavantaj Auto Scrapers
+
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 3 * * *'  # Run daily at 03:00 UTC
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # CRITICAL: Ensures that if one scraper fails, the rest continue to run
+      matrix:
+        scraper: 
+          - akbank_axess
+          - akbank_business
+          - akbank_free
+          - akbank_wings
+          - chippin
+          - denizbank
+          - enpara
+          - garanti_milesandsmiles
+          - garanti_shopandfly
+          - garantibonus
+          - isbankasi_genc
+          - isbankasi_maximiles
+          - isbankasi_maximum
+          - paraf
+          - qnb
+          - teb
+          - turkiyefinans
+          - vakifbank
+          - yapikredi_adios
+          - yapikredi_crystal
+          - yapikredi_play
+          - yapikredi_world
+          - ziraat
+          
+    name: Run ${{ matrix.scraper }} Scraper
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+        
+    - name: Install System Dependencies (Chrome & Xvfb)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable xvfb
+        
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install selenium-stealth pyvirtualdisplay webdriver-manager
+        
+    - name: Install Playwright Browsers
+      run: |
+        playwright install chromium
+        
+    - name: Run Scraper
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        ZENROWS_API_KEY: ${{ secrets.ZENROWS_API_KEY }}
+      run: |
+        # Run with Virtual Display to support both Selenium and Playwright
+        xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python -m src.scrapers.${{ matrix.scraper }}
