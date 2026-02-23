@@ -20,7 +20,7 @@ DATABASE_URL = "postgresql://postgres:WnQNWkuA52DaZoaTsGm6gCCqTgk03W9PXsFIWsc77N
 # Import AI Parser from sibling directory
 # We need to add the project root to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__)) # src/scrapers
-project_root = os.path.dirname(os.path.dirname(current_dir)) # /Users/.../kasaonu-scraper
+project_root = os.path.dirname(os.path.dirname(current_dir)) # /Users/.../kartavantaj-scraper
 if project_root not in sys.path:
     sys.path.append(project_root)
 
@@ -33,7 +33,7 @@ except ImportError:
 
 # Load Env (for DB and API Key)
 try:
-    # Try loading from local kasaonu .env first (if running from there)
+    # Try loading from local kartavantaj .env first (if running from there)
     with open('.env', 'r') as f:
         for line in f:
             if line.strip() and not line.startswith('#'):
@@ -329,7 +329,7 @@ class VakifbankScraper:
             traceback.print_exc()
 
     def run(self):
-        print("🚀 Starting VakıfBank Scraper (Powered by KasaOnu AI Parser)...")
+        print("🚀 Starting VakıfBank Scraper (Powered by Kartavantaj AI Parser)...")
         urls = self._fetch_campaign_list(limit_pages=1)
         count = 0
         for i, url in enumerate(urls):

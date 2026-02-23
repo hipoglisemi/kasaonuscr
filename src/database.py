@@ -1,5 +1,5 @@
 """
-Database connection and session management for kasaonu-scraper
+Database connection and session management for Kartavantaj scraper
 """
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base

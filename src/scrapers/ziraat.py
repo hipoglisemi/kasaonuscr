@@ -19,7 +19,7 @@ DATABASE_URL = "postgresql://postgres:WnQNWkuA52DaZoaTsGm6gCCqTgk03W9PXsFIWsc77N
 
 # Import AI Parser from sibling directory
 current_dir = os.path.dirname(os.path.abspath(__file__)) # src/scrapers
-project_root = os.path.dirname(os.path.dirname(current_dir)) # /Users/.../kasaonu-scraper
+project_root = os.path.dirname(os.path.dirname(current_dir)) # /Users/.../kartavantaj-scraper
 if project_root not in sys.path:
     sys.path.append(project_root)
 

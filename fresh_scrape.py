@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fresh Scrape Script for KasaÖnü
+Fresh Scrape Script for Kartavantaj
 Deletes all campaigns and scrapes 10 from each scraper
 """
 
@@ -82,7 +82,7 @@ def run_scraper(scraper_name, scraper_file, limit=10):
 
 def main():
     print("━" * 80)
-    print("🚀 KASAÖNÜ FRESH SCRAPE: 10 Campaigns Per Scraper")
+    print("🚀 KARTAVANTAJ FRESH SCRAPE: 10 Campaigns Per Scraper")
     print("━" * 80)
     print()
     

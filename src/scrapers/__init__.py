@@ -26,6 +26,10 @@ try:
     from .isbankasi_maximum import IsbankMaximumScraper
 except ImportError: IsbankMaximumScraper = None
 
+try:
+    from .enpara import EnparaScraper
+except ImportError: EnparaScraper = None
+
 __all__ = [
     'GarantiBonusScraper',
     'GarantiMilesAndSmilesScraper',
@@ -33,5 +37,6 @@ __all__ = [
     'AkbankAxessScraper',
     'AkbankFreeScraper',
     'AkbankBusinessScraper',
-    'IsbankMaximumScraper'
+    'IsbankMaximumScraper',
+    'EnparaScraper'
 ]

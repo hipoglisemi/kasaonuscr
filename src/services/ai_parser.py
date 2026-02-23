@@ -139,8 +139,127 @@ BANK_RULES = {
     - 🚨 FORMAT: 3-5 concise bullet points
     - 🚨 AVOID: Repeating dates, card names, or participation method already extracted separately
 - DATE LOGIC:
-    - If year is missing, look for context (e.g. current year {current_date}).
+     - If year is missing, look for context (e.g. current year {current_date}).
 """
+    ,
+    'denizbank': """
+🚨 DENIZBANK (DENIZBONUS) SPECIFIC RULES:
+- TERMINOLOGY: "Bonus". 1 Bonus = 1 TL.
+- ELIGIBLE CARDS:
+    - 🚨 STRICT: "DenizBonus", "DenizBonus Gold", "DenizBonus Platinum", "DenizBank Black", "DenizBank TROY".
+    - "Ticari Kartlar" = ["DenizBonus Business"].
+    - 🚨 EXCLUSION: "Net Kart", "Bankamatik", "Ptt Bonus" are often EXCLUDED.
+- PARTICIPATION:
+    - 🚨 PRIORITY:
+      1. App: "MobilDeniz" or "DenizKartım". Look for "Hemen Katıl" button.
+      2. SMS: Look for keywords sent to **3280**. (e.g. "KATIL yazıp 3280'e gönder").
+      3. Automatic: If "katılım gerekmemektedir" or "otomatik", use "Otomatik Katılım".
+- CONDITIONS:
+    - 🚨 FORMAT: Summarize into 3-5 bullets.
+    - Include: Max earning limit, start/end dates, valid sectors.
+""",
+    'qnb': """
+🚨 QNB FİNANSBANK SPECIFIC RULES:
+- TERMINOLOGY: "ParaPuan". 1 ParaPuan = 1 TL.
+- ELIGIBLE CARDS:
+    - 🚨 STRICT: Extract ONLY cards explicitly mentioned in the text.
+    - Common cards: "QNB Kredi Kartı", "QNB Nakit Banka Kartı", "TROY Kart", "QNB First Kredi Kartı".
+    - "Bireysel kredi kartları" = ["QNB Kredi Kartı"].
+    - 🚨 EXCLUSION: "Ticari kartlar" are often EXCLUDED unless explicitly mentioned.
+- PARTICIPATION:
+    - 🚨 PRIORITY ORDER:
+      1. SMS: Look for a keyword + "2273" (e.g. "RAMAZAN yazıp 2273'e SMS gönderin").
+      2. App: "QNB Mobil" or "QNB Finansbank Mobil". Look for "HEMEN KATIL" button.
+      3. Checkout/Sepet: If text says "sepet sayfasında ... seçilmeli" or "ödeme adımında ... seçin" or "ilk 6 hane" → use "Sepet sayfasında QNB İndirimleri seçin ve kart numarasının ilk 6 hanesini girin."
+      4. Automatic: ONLY if none of the above apply AND text says "katılım gerektirmez" or "otomatik".
+    - ⛔ NEGATIVE: Do NOT write "Otomatik Katılım" if there is any checkout/sepet/6-hane instruction in the text.
+    - 🚨 FORMAT: Be specific. Example: "RAMAZAN yazıp 2273'e SMS gönderin veya QNB Mobil'den HEMEN KATIL butonuna tıklayın."
+- CONDITIONS:
+    - 🚨 CRITICAL: DO NOT repeat information already in dates, eligible cards, or participation sections.
+    - 🚨 FOCUS ON UNIQUE DETAILS ONLY:
+      * Minimum spend thresholds (e.g. "Her 2.500 TL harcamaya 200 TL ParaPuan")
+      * Maximum earning limits (e.g. "Maksimum 3.000 TL ParaPuan")
+      * Excluded transaction types (e.g. "Nakit çekim, havale hariç")
+      * Excluded card types (e.g. "Ticari kartlar hariç")
+      * ParaPuan usage restrictions (e.g. "ParaPuan 30 gün içinde yüklenir")
+    - 🚨 FORMAT: 3-5 concise bullet points. NO long paragraphs.
+    - 🚨 AVOID: Repeating dates, card names, or SMS/app instructions already extracted.
+"""
+    ,
+    'teb': """
+🚨 TEB (TÜRK EKONOMİ BANKASI) SPECIFIC RULES:
+- TERMINOLOGY: "Bonus". 1 Bonus = 1 TL. "TEB Bonus" is the reward program name.
+- ELIGIBLE CARDS:
+    - 🚨 STRICT: Extract ONLY cards explicitly mentioned in the text.
+    - Common cards: "TEB Kredi Kartı", "TEB Bonus Kart", "TEB Banka Kartı", "CEPTETEB".
+    - "Bireysel kredi kartları" = ["TEB Kredi Kartı"].
+    - 🚨 EXCLUSION: "Ticari kartlar" are often EXCLUDED unless explicitly mentioned.
+- PARTICIPATION:
+    - 🚨 PRIORITY ORDER:
+      1. Campaign Code + SMS: If text contains "Kampanya Kodu: XXXXX" at the top, the participation is "XXXXX yazıp 5350'ye SMS gönderin."
+      2. App: "TEB Mobil" or "CEPTETEB". Look for "Hemen Katıl" button.
+      3. Checkout/Sepet: If text says "ödeme adımında ... seçin" or "sepet sayfasında" → describe the checkout step.
+      4. Automatic: ONLY if text explicitly says "katılım gerektirmez" or "otomatik".
+    - ⛔ NEGATIVE: Do NOT write "Otomatik Katılım" if there is a campaign code or any checkout instruction.
+    - 🚨 FORMAT: Be specific. Example: "MARKET2026 yazıp 5350'ye SMS gönderin veya TEB Mobil'den Hemen Katıl butonuna tıklayın."
+- CONDITIONS:
+    - 🚨 CRITICAL: DO NOT repeat information already in dates, eligible cards, or participation sections.
+    - 🚨 FOCUS ON UNIQUE DETAILS ONLY:
+      * Minimum spend thresholds (e.g. "Her 500 TL harcamaya 50 TL Bonus")
+      * Maximum earning limits (e.g. "Maksimum 500 TL Bonus")
+      * Excluded transaction types (e.g. "Nakit çekim, taksitli işlemler hariç")
+      * Bonus loading timeline (e.g. "Bonus 30 gün içinde yüklenir")
+    - 🚨 FORMAT: 3-5 concise bullet points. NO long paragraphs.
+    - 🚨 AVOID: Repeating dates, card names, or SMS instructions already extracted.
+"""
+    ,
+    'turkiye-finans': """
+🚨 TÜRKİYE FİNANS (HAPPY CARD / ÂLÂ KART) SPECIFIC RULES:
+- TERMINOLOGY: 
+    - "Bonus": Used often for Happy Card (uses Bonus network). 1 Bonus = 1 TL.
+    - "ParaPuan": Sometimes used. 1 ParaPuan = 1 TL.
+- ELIGIBLE CARDS:
+    - 🚨 STRICT: Extract ONLY cards mentioned.
+    - Common: "Happy Card", "Happy Zero", "Happy Gold", "Happy Platinum", "Âlâ Kart".
+    - "Türkiye Finans Kredi Kartları" = ["Happy Card", "Âlâ Kart"].
+- PARTICIPATION:
+    - 🚨 PRIORITY ORDER:
+      1. SMS: Look for keyword + "2442" (e.g. "KATIL yazıp 2442'ye SMS").
+      2. App: "Mobil Şube" or "İnternet Şubesi". Look for "Kampanyalar" menu.
+      3. Automatic: ONLY if "otomatik katılım" or if no SMS/App instruction exists AND text implies auto.
+    - 🚨 FORMAT: 3-5 concise bullet points.
+    """,
+    "chippin": """
+🚨 CHIPPIN SPECIFIC RULES:
+- TERMINOLOGY:
+    - "Chippuan": Reward currency. 1 Chippuan = 1 TL.
+    - "Nakit İade": Cash back to credit card.
+- ELIGIBLE CARDS:
+    - Usually "Tüm kredi kartları" or specific bank cards added to Chippin.
+- PARTICIPATION:
+    - 🚨 PRIORITY ORDER:
+      1. App Payment: "Chippin ile ödeme yapmanız gerekmektedir."
+      2. QR Code: "Chippin numaranızı söyleyin" or "QR kodunu okutun".
+- CONDITIONS:
+    - 🚨 CRITICAL: Extract minimum spend, max reward, and specific branch/online restrictions.
+    - 🚨 FORMAT: 3-5 concise bullet points.
+    """,
+    "enpara": """
+🚨 ENPARA SPECIFIC RULES:
+- TERMINOLOGY: "İade" or "Geri Ödeme" is commonly used. Rewards are usually TL value.
+- ELIGIBLE CARDS: 
+    - 🚨 STRICT: "Enpara.com Kredi Kartı" or "Enpara Kredi Kartı".
+    - 🚨 NOTE: If "Enpara.com Nakit Kart" is mentioned, include it.
+- PARTICIPATION:
+    - 🚨 PRIORITY: "Ayın Enparalısı". 
+    - Almost all campaigns require being "Ayın Enparalısı". 
+    - 🚨 FORMAT: If you see "Ayın Enparalısı olmanız yeterli", the participation method is "Ayın Enparalısı olma şartlarını yerine getirin."
+    - No SMS or "Katıl" button is typically needed. 
+- CONDITIONS:
+    - 🚨 🚨 **CRITICAL**: Extract every important point from the specific section "Nelere Dikkat Etmelisiniz".
+    - 🚨 FORMAT: 4-6 concise bullet points.
+    - Include: Spend limits, dates, "Ayın Enparalısı" requirement, and brand-specific exclusions.
+    """
 }
 
 # Configure Gemini
@@ -162,7 +281,7 @@ class AIParser:
         Initialize AI parser
         
         Args:
-            model_name: Gemini model to use (default: gemini-1.5-flash)
+            model_name: Gemini model to use (default: gemini-2.0-flash)
         """
         self.model = genai.GenerativeModel(model_name)
         
@@ -191,22 +310,61 @@ class AIParser:
         # Build prompt
         prompt = self._build_prompt(clean_text, datetime.now().strftime("%Y-%m-%d"), bank_name)
         
-        try:
-            # Call Gemini
-            response = self.model.generate_content(prompt)
-            result_text = response.text.strip()
-            
-            # Extract JSON from response
-            json_data = self._extract_json(result_text)
-            
-            # Validate and normalize
-            normalized = self._normalize_data(json_data)
-            
-            return normalized
-            
-        except Exception as e:
-            print(f"AI Parser Error: {e}")
-            return self._get_fallback_data(title or "")
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Call Gemini
+                response = self.model.generate_content(prompt)
+                
+                # Debugging info
+                try:
+                    if response.prompt_feedback:
+                        print(f"   ℹ️ Prompt Feedback: {response.prompt_feedback}")
+                except: pass
+                
+                try:
+                    if not response.parts:
+                        print("   ⚠️ Response has no parts.")
+                        print(f"   ℹ️ Candidates: {response.candidates}")
+                except: pass
+
+                try:
+                    result_text = response.text.strip()
+                except ValueError:
+                    # Often happens if content was blocked
+                    print("   ❌ Blocked content?")
+                    try:
+                        print(f"   ℹ️ Filters: {response.candidates[0].safety_ratings}")
+                        print(f"   ℹ️ Finish Reason: {response.candidates[0].finish_reason}")
+                    except: pass
+                    result_text = "{}"
+
+                if not result_text:
+                    print("   ⚠️ Empty response text.")
+                    result_text = "{}"
+
+                # Extract JSON from response
+                json_data = self._extract_json(result_text)
+                
+                # Validate and normalize
+                normalized = self._normalize_data(json_data)
+                
+                return normalized
+                
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str or "Resource exhausted" in error_str:
+                    wait_time = (attempt + 1) * 2  # 2s, 4s, 6s...
+                    print(f"   ⚠️ AI Parsing Rate Limit (429). Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                    import time
+                    time.sleep(wait_time)
+                    continue
+                
+                print(f"AI Parser Error: {e}")
+                return self._get_fallback_data(title or "")
+        
+        print("   ❌ Max retries reached for AI Parser.")
+        return self._get_fallback_data(title or "")
     
     def _clean_text(self, text: str) -> str:
         """Clean and normalize text"""
@@ -258,10 +416,19 @@ VALID SECTORS (BİRİNİ SEÇ — SADECE bu listeden):
     - 'reward_text' kısmına en kısa ve çarpıcı ödülü yaz.
     - "Peşin fiyatına" gibi detayları yazma, sadece "150 TL Puan", "+4 Taksit", "%20 İndirim" yaz.
     - Eğer "100 TL Worldpuan" diyorsa "100 TL Worldpuan" yaz. (Değer + Tür)
-6. **CONDITIONS**: Metindeki koşulları madde madde özetle.
+6. **CONDITIONS**: 
+    - Metindeki koşulları madde madde özetle.
+    - 🚨 TEKRAR KURALI: Eğer bir bilgi zaten 'start_date', 'end_date', 'cards', 'participation' veya 'sectors' alanlarına çekilmişse, bu bilgiyi tekrar 'conditions' listesine EKLEME. 
+    - Örnek: "Kampanya 1-31 Ocak tarihleri arasında geçerlidir" cümlesi zaten tarihlerde olduğu için buraya ekleme.
+    - Sadece ek koşulları, limitleri ve kısıtlamaları buraya yaz.
 7. **DATES (KRİTİK)**: 
     - Tüm tarihleri 'YYYY-MM-DD' formatında ver.
-    - Eğer yıl belirtilmemişse, bağlama göre {datetime.now().year} veya {datetime.now().year + 1} kullan.
+    - 🚨 YIL KURALI: Eğer yıl belirtilmemişse:
+      * Bugünün tarihi: {current_date} (Yıl: {datetime.now().year}, Ay: {datetime.now().month})
+      * Kampanya ayı < Bugünün ayı → Yıl: {datetime.now().year + 1}
+      * Kampanya ayı >= Bugünün ayı → Yıl: {datetime.now().year}
+      * Örnek 1: Bugün 17 Şubat 2026. "1-28 Şubat" → 2026-02-01 ve 2026-02-28
+      * Örnek 2: Bugün 17 Mart 2026. "1-28 Şubat" → 2027-02-01 ve 2027-02-28
     - Sadece bitiş tarihi varsa, başlangıç tarihi olarak bugünü ({current_date}) al.
     - "1-28 Şubat" gibi aralıklar için: 2026-02-01 ve 2026-02-28 (Yılı ekle).
 
