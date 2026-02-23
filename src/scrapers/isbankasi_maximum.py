@@ -69,20 +69,39 @@ class IsbankMaximumScraper:
         2. Local: Try connecting to debug Chrome (localhost:9222)
         3. Local Fallback: Launch new undetected_chromedriver instance
         """
-        # 1. GitHub Actions / Headless Env
         if os.getenv('GITHUB_ACTIONS'):
             try:
                 import undetected_chromedriver as uc
                 options = uc.ChromeOptions()
-                options.add_argument('--headless')
+                options.add_argument('--headless=new') # Use new headless mode
                 options.add_argument('--no-sandbox')
                 options.add_argument('--disable-dev-shm-usage')
                 options.add_argument('--disable-gpu')
+                options.add_argument('--window-size=1920,1080')
+                # Add dummy user agent to prevent blocks in headless
+                options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                
+                # In Github Actions we let uc find the installed chrome
                 driver = uc.Chrome(options=options)
                 print("✅ Connected to undetected_chromedriver (GitHub Actions mode)")
                 return driver
-            except ImportError:
-                raise ImportError("undetected_chromedriver not installed")
+            except Exception as e:
+                print(f"⚠️ Github Actions UC failed: {e}")
+                # Fallback to standard selenium headless if UC completely fails
+                try:
+                    from selenium import webdriver
+                    from selenium.webdriver.chrome.service import Service
+                    from webdriver_manager.chrome import ChromeDriverManager
+                    options = webdriver.ChromeOptions()
+                    options.add_argument('--headless=new')
+                    options.add_argument('--no-sandbox')
+                    options.add_argument('--disable-dev-shm-usage')
+                    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+                    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+                    print("✅ Connected to standard headless chrome (Fallback)")
+                    return driver
+                except Exception as e2:
+                    raise Exception(f"All headless attempts failed. UC: {e}, Standard: {e2}")
 
         # 2. Local: Try connecting to debug Chrome
         # 1. Local: Prioritize Undetected Chromedriver (Best for scraping)

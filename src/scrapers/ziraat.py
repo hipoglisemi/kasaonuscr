@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 
 # --- CONFIGURATION ---
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# (Will load AFTER environment variables)
 
 # Import AI Parser from sibling directory
 current_dir = os.path.dirname(os.path.abspath(__file__)) # src/scrapers
@@ -31,12 +31,15 @@ except ImportError:
 
 # Load Env
 try:
+    from dotenv import load_dotenv
+    load_dotenv()
     with open('.env', 'r') as f:
         for line in f:
             if line.strip() and not line.startswith('#'):
                 k, v = line.strip().split('=', 1)
-                os.environ[k] = v.strip('"\'')
 except: pass
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # --- MODELS ---
 Base = declarative_base()
@@ -139,30 +142,72 @@ class ZiraatScraper:
         print(f"📄 Fetching main campaign page: {self.LIST_URL}")
         campaigns = []
         try:
+            # Ziraat actually uses an API endpoint for pagination / load more
+            # URL: https://www.bankkart.com.tr/App_Plugins/ZiraatBankkart/DesignBankkart/GetMoreCamp.aspx?id=0&t=0
+            # Let's use Playwright/Selenium for simplicity, or API if possible.
+            # Ziraat list page loads initially ~16 items. We need to fetch the HTML directly as Selenium isn't set up yet in this script.
+            
+            # For Ziraat we will fetch the first page, then try to fetch next pages using the load more URL
+            # The JS uses: $.post("/App_Plugins/ZiraatBankkart/DesignBankkart/GetMoreCamp.aspx?id=" + listcount + "&t=" + t, ...
+            
             response = self.session.get(self.LIST_URL, timeout=30)
             soup = BeautifulSoup(response.text, 'html.parser')
             items = soup.select(".campaigns-list .campaign-box")
             
+            # Process first page
             for item in items:
                 href = item.get('href')
                 if not href: continue
                 full_url = urljoin(self.BASE_URL, href)
-                
-                # Metadata from list (Image, Date)
                 img = item.select_one('.front img')
                 img_url = urljoin(self.BASE_URL, img['src']) if img else None
-                
-                # Date text (e.g. "Son Gün 28.2.2026")
                 date_el = item.select_one('.bottom .date')
                 end_date_str = date_el.text.strip() if date_el else None
+                campaigns.append({"url": full_url, "image_url": img_url, "list_end_date": end_date_str})
                 
-                campaigns.append({
-                    "url": full_url,
-                    "image_url": img_url,
-                    "list_end_date": end_date_str
-                })
+            print(f"   -> Found {len(campaigns)} items on page 1.")
             
-            print(f"   -> Found {len(campaigns)} items.")
+            # Fetch remaining pages via AJAX
+            listcount = len(items)
+            page = 2
+            
+            while True:
+                # The 't' parameter is usually 0 for all campaigns
+                ajax_url = f"https://www.bankkart.com.tr/App_Plugins/ZiraatBankkart/DesignBankkart/GetMoreCamp.aspx?id={listcount}&t=0"
+                resp = self.session.post(ajax_url, timeout=30)
+                
+                if not resp.text or not resp.text.strip():
+                    break
+                    
+                ajax_soup = BeautifulSoup(resp.text, 'html.parser')
+                new_items = ajax_soup.select(".campaign-box")
+                
+                if not new_items:
+                    break
+                    
+                for item in new_items:
+                    href = item.get('href')
+                    if not href: continue
+                    full_url = urljoin(self.BASE_URL, href)
+                    img = item.select_one('.front img')
+                    img_url = urljoin(self.BASE_URL, img['src']) if img else None
+                    date_el = item.select_one('.bottom .date')
+                    end_date_str = date_el.text.strip() if date_el else None
+                    
+                    # Avoid duplicates
+                    if not any(c['url'] == full_url for c in campaigns):
+                        campaigns.append({"url": full_url, "image_url": img_url, "list_end_date": end_date_str})
+                        
+                listcount += len(new_items)
+                print(f"   -> Found {len(new_items)} items on page {page}.")
+                page += 1
+                time.sleep(1) # Be nice
+                
+                # Hard limit to prevent infinite loops if something goes wrong
+                if page > 15:
+                    break
+            
+            print(f"   ✅ Total found: {len(campaigns)} items.")
         except Exception as e:
             print(f"   ❌ Error fetching list: {e}")
             traceback.print_exc()
@@ -366,12 +411,15 @@ class ZiraatScraper:
         print("🚀 Starting Ziraat Bank Scraper...")
         campaigns = self._fetch_campaign_list()
         
-        # Limit to 10 for testing
-        limit = 5
-        count = 0
+        # Check environment limit
+        max_campaigns = os.environ.get("MAX_CAMPAIGNS_PER_RUN")
+        limit = int(max_campaigns) if max_campaigns else 999
         
+        count = 0
         for camp in campaigns:
-            if count >= limit: break
+            if count >= limit:
+                print(f"🛑 Reached MAX_CAMPAIGNS_PER_RUN limit ({limit})")
+                break
             self._process_campaign(camp)
             count += 1
             time.sleep(2)
