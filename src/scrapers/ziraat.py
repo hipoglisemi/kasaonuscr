@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 
 # --- CONFIGURATION ---
-DATABASE_URL = "postgresql://postgres:WnQNWkuA52DaZoaTsGm6gCCqTgk03W9PXsFIWsc77NhTAGwZID3wqOel58mkOdW1@46.225.74.97:5432/postgres"
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # Import AI Parser from sibling directory
 current_dir = os.path.dirname(os.path.abspath(__file__)) # src/scrapers
