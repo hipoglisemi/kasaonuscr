@@ -15,8 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db_session
 from ..models import Bank, Card, Sector, Brand, Campaign, CampaignBrand
-from ..services.ai_parser import parse_campaign_data
-
+from ..services.ai_parser import parse_api_campaign
 
 class GarantiBonusScraper:
     """
@@ -197,12 +196,20 @@ class GarantiBonusScraper:
             full_text = soup.get_text(separator=' ')
             
             print(f"   📄 Title: {title[:50]}...")
+
+            # Duplicate Check using SQLAlchemy
+            existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
+            if existing:
+                print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")
+                return True
             
-            # 🧠 AI PARSER - Replace 100+ lines of regex
-            parsed_data = parse_campaign_data(
-                raw_text=full_text,
+            # 🧠 AI PARSER
+            parsed_data = parse_api_campaign(
                 title=title,
-                bank_name=self.BANK_NAME
+                short_description=title,
+                content_html=full_text,
+                bank_name=self.BANK_NAME,
+                scraper_sector=None
             )
             
             # Get or create card
@@ -224,14 +231,16 @@ class GarantiBonusScraper:
             campaign = Campaign(
                 card_id=card.id,
                 sector_id=sector.id if sector else None,
-                title=parsed_data.get("title") or title,
+                slug=parsed_data.get("slug") or title.lower().replace(" ", "-"),
+                title=parsed_data.get("short_title") or title,
                 reward_text=parsed_data.get("reward_text"),
                 reward_value=Decimal(str(parsed_data["reward_value"])) if parsed_data.get("reward_value") else None,
                 reward_type=parsed_data.get("reward_type"),
-                details_text=parsed_data.get("description"),
-                conditions_text="\n".join(parsed_data.get("conditions", [])),
-                start_date=parsed_data.get("start_date"),
-                end_date=parsed_data.get("end_date"),
+                description=parsed_data.get("short_description") or "",
+                conditions="\n".join(parsed_data.get("conditions", [])),
+                image_url=image_url,
+                start_date=datetime.strptime(parsed_data["start_date"], "%Y-%m-%d") if parsed_data.get("start_date") else None,
+                end_date=datetime.strptime(parsed_data["end_date"], "%Y-%m-%d") if parsed_data.get("end_date") else None,
                 tracking_url=url,
                 is_active=True
             )
@@ -350,7 +359,7 @@ class GarantiBonusScraper:
 
 def main():
     """Run Garanti Bonus scraper"""
-    scraper = GarantiBonusScraper(max_campaigns=10)  # Test with 10 campaigns
+    scraper = GarantiBonusScraper()
     scraper.run()
 
 

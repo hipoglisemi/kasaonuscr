@@ -261,40 +261,28 @@ class VakifbankScraper:
             # DB Operation
             existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
             if existing:
-                print(f"   ⏭️ Updating ID: {existing.id}...")
-                campaign = existing
-                campaign.title = title
-                campaign.description = desc
-                # ai_marketing_text not in central parser by default, construct from description or leave
-                # The central parser returns 'description', we can use that.
-                # Or we can construct a short text. Let's keep it simple.
-                campaign.reward_text = ai_data.get("reward_text")
-                campaign.reward_value = ai_data.get("reward_value")
-                campaign.conditions = final_conditions
-                campaign.eligible_cards = ", ".join(ai_data.get("cards", []))
-                campaign.start_date = vf
-                campaign.end_date = vu
-                campaign.sector_id = sector.id if sector else None
-            else:
-                campaign = Campaign(
-                    card_id=self.card_id,
-                    sector_id=sector.id if sector else None,
-                    slug=slug,
-                    title=title,
-                    description=desc,
-                    reward_text=ai_data.get("reward_text"),
-                    reward_value=ai_data.get("reward_value"),
-                    conditions=final_conditions,
-                    eligible_cards=", ".join(ai_data.get("cards", [])),
-                    image_url=image_url,
-                    start_date=vf,
-                    end_date=vu,
-                    is_active=True,
-                    tracking_url=url,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
-                )
-                self.db.add(campaign)
+                print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")
+                return
+
+            campaign = Campaign(
+                card_id=self.card_id,
+                sector_id=sector.id if sector else None,
+                slug=slug,
+                title=title,
+                description=desc,
+                reward_text=ai_data.get("reward_text"),
+                reward_value=ai_data.get("reward_value"),
+                conditions=final_conditions,
+                eligible_cards=", ".join(ai_data.get("cards", [])),
+                image_url=image_url,
+                start_date=vf,
+                end_date=vu,
+                is_active=True,
+                tracking_url=url,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            self.db.add(campaign)
             
             self.db.commit()
 
@@ -330,10 +318,9 @@ class VakifbankScraper:
 
     def run(self):
         print("🚀 Starting VakıfBank Scraper (Powered by Kartavantaj AI Parser)...")
-        urls = self._fetch_campaign_list(limit_pages=1)
+        urls = self._fetch_campaign_list()
         count = 0
         for i, url in enumerate(urls):
-            if count >= 10: break
             self._process_campaign(url)
             count += 1
             time.sleep(2) # Rate limiting

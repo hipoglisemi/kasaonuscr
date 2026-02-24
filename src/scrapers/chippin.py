@@ -256,17 +256,7 @@ class ChippinScraper:
                     }
 
                     if existing:
-                        print(f"      🔄 Updating (Syncing Correct URL)...")
-                        # Fix SQLAlchemy parameter binding by using :name throughout
-                        conn.execute(text("""
-                            UPDATE campaigns
-                            SET title=:title, description=:description, image_url=:image_url,
-                                start_date=:start_date, end_date=:end_date, sector_id=:sector_id,
-                                conditions=:conditions, eligible_cards=:eligible_cards,
-                                reward_text=:reward_text, reward_value=:reward_value, 
-                                reward_type=:reward_type, updated_at=NOW()
-                            WHERE tracking_url=:tracking_url
-                        """), campaign_data)
+                        print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {campaign_data['tracking_url']}")
                         campaign_id = existing[0]
                     else:
                         print(f"      ✨ Creating...")

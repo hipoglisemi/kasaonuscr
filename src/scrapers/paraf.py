@@ -126,7 +126,7 @@ class ParafScraper:
         # Check if exists
         existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
         if existing:
-            print(f"      ⚠️ Skipping (Already exists)")
+            print(f"      ⏭️ Skipped (Already exists, preserving manual edits)")
             return False
 
         try:
@@ -327,7 +327,7 @@ class ParafScraper:
 
 if __name__ == "__main__":
     try:
-        scraper = ParafScraper(max_campaigns=5)
+        scraper = ParafScraper()
         scraper.run()
     except Exception as e:
         import traceback

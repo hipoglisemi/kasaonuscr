@@ -9,6 +9,14 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
+import sys
+
+# Virtual Display (for GitHub Actions / Headless)
+try:
+    from pyvirtualdisplay import Display
+    HAS_VIRTUAL_DISPLAY = True
+except ImportError:
+    HAS_VIRTUAL_DISPLAY = False
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -32,6 +40,7 @@ class IsbankMaximilesScraper:
     
     def __init__(self):
         self.driver = None
+        self.display = None
         self.card_id = None
         self._init_card()
     
@@ -51,11 +60,20 @@ class IsbankMaximilesScraper:
     
     def _get_driver(self):
         """Initialize Selenium driver"""
+        if sys.platform.startswith('linux') and HAS_VIRTUAL_DISPLAY:
+            print("   🖥️ Starting Virtual Display (Xvfb)...")
+            try:
+                self.display = Display(visible=0, size=(1920, 1080))
+                self.display.start()
+            except Exception as e:
+                print(f"   ⚠️ Failed to start virtual display: {e}")
+
         if os.getenv('GITHUB_ACTIONS'):
             try:
                 import undetected_chromedriver as uc
                 options = uc.ChromeOptions()
-                options.add_argument('--headless')
+                if not self.display:
+                    options.add_argument('--headless')
                 options.add_argument('--no-sandbox')
                 options.add_argument('--disable-dev-shm-usage')
                 options.add_argument('--disable-gpu')
@@ -515,7 +533,10 @@ class IsbankMaximilesScraper:
             if self.driver:
                 try: self.driver.quit()
                 except: pass
+            if hasattr(self, 'display') and self.display:
+                try: self.display.stop()
+                except: pass
 
 if __name__ == "__main__":
     scraper = IsbankMaximilesScraper()
-    scraper.run(limit=5)
+    scraper.run()

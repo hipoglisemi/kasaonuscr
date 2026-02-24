@@ -204,7 +204,7 @@ class ZiraatScraper:
                 time.sleep(1) # Be nice
                 
                 # Hard limit to prevent infinite loops if something goes wrong
-                if page > 15:
+                if page > 50:
                     break
             
             print(f"   ✅ Total found: {len(campaigns)} items.")
@@ -343,38 +343,28 @@ class ZiraatScraper:
             # DB Upsert
             existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
             if existing:
-                print(f"   ⏭️ Updating ID: {existing.id}...")
-                campaign = existing
-                campaign.title = title
-                campaign.description = desc
-                campaign.reward_text = ai_data.get("reward_text")
-                campaign.reward_value = ai_data.get("reward_value")
-                campaign.conditions = final_conditions
-                campaign.eligible_cards = ", ".join(ai_data.get("cards", []))
-                campaign.start_date = vf
-                campaign.end_date = vu
-                campaign.sector_id = sector.id if sector else None
-                campaign.image_url = final_image # Update image
-            else:
-                campaign = Campaign(
-                    card_id=self.card_id,
-                    sector_id=sector.id if sector else None,
-                    slug=slug,
-                    title=title,
-                    description=desc,
-                    reward_text=ai_data.get("reward_text"),
-                    reward_value=ai_data.get("reward_value"),
-                    conditions=final_conditions,
-                    eligible_cards=", ".join(ai_data.get("cards", [])),
-                    image_url=final_image,
-                    start_date=vf,
-                    end_date=vu,
-                    is_active=True,
-                    tracking_url=url,
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
-                )
-                self.db.add(campaign)
+                print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")
+                return
+
+            campaign = Campaign(
+                card_id=self.card_id,
+                sector_id=sector.id if sector else None,
+                slug=slug,
+                title=title,
+                description=desc,
+                reward_text=ai_data.get("reward_text"),
+                reward_value=ai_data.get("reward_value"),
+                conditions=final_conditions,
+                eligible_cards=", ".join(ai_data.get("cards", [])),
+                image_url=final_image,
+                start_date=vf,
+                end_date=vu,
+                is_active=True,
+                tracking_url=url,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            self.db.add(campaign)
             
             self.db.commit()
 

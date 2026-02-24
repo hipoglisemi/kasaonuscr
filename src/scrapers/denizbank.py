@@ -205,18 +205,41 @@ class DenizbankScraper:
             time.sleep(random.uniform(4.0, 7.0))
             
             # ✅ İnsan gibi scroll davranışı
-            print("   📜 Scrolling like human...")
-            total_height = self.driver.execute_script("return document.body.scrollHeight")
-            viewport_height = self.driver.execute_script("return window.innerHeight")
+            # ✅ İnsan gibi scroll davranışı ve Dinamik Yükleme
+            print("   📜 Scrolling to load all campaigns...")
             
-            # Kademeli scroll
-            for i in range(3):
-                scroll_to = (i + 1) * (total_height // 4)
-                self.driver.execute_script(f"window.scrollTo(0, {scroll_to});")
-                time.sleep(random.uniform(0.8, 1.5))
+            last_height = self.driver.execute_script("return document.body.scrollHeight")
+            scroll_attempts = 0
+            max_attempts = 15 # A reasonable limit to prevent true infinite loops
+            
+            while scroll_attempts < max_attempts:
+                # Scroll down to bottom
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                
+                # Wait for new elements to load
+                time.sleep(random.uniform(2.0, 3.5))
+                
+                # Calculate new scroll height and compare with last scroll height
+                new_height = self.driver.execute_script("return document.body.scrollHeight")
+                
+                if new_height == last_height:
+                    # Try one more time with a slightly different scroll to trigger lazy loading
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight - 100);")
+                    time.sleep(1)
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(2)
+                    
+                    new_height = self.driver.execute_script("return document.body.scrollHeight")
+                    if new_height == last_height:
+                        print(f"   ✅ Reached bottom after {scroll_attempts} scrolls.")
+                        break
+                
+                last_height = new_height
+                scroll_attempts += 1
+                print(f"   ⏬ Loaded more content (Scroll {scroll_attempts})...")
             
             # Biraz yukarı scroll (insan gibi)
-            self.driver.execute_script(f"window.scrollTo(0, {total_height // 3});")
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight - 500);")
             time.sleep(1)
             
             # ✅ Mouse hareket simülasyonu (opsiyonel ama etkili)
@@ -520,41 +543,29 @@ class DenizbankScraper:
                 ).fetchone()
 
                 if existing:
-                    campaign_id = existing[0]
-                    print(f"   🔄 Updating: {data['title']}")
-                    conn.execute(
-                        text("""
-                            UPDATE campaigns 
-                            SET title=:title, description=:description, image_url=:image_url, 
-                                start_date=:start_date, end_date=:end_date, sector_id=:sector_id,
-                                conditions=:conditions, eligible_cards=:eligible_cards,
-                                reward_text=:reward_text, reward_value=:reward_value, 
-                                reward_type=:reward_type, updated_at=NOW()
-                            WHERE tracking_url=:tracking_url
-                        """),
-                        data
-                    )
-                else:
-                    print(f"   ✨ Creating: {data['title']}")
-                    result = conn.execute(
-                        text("""
-                            INSERT INTO campaigns (
-                                title, description, slug, image_url, tracking_url, is_active, 
-                                sector_id, card_id, start_date, end_date, conditions, 
-                                eligible_cards, reward_text, reward_value, reward_type,
-                                created_at, updated_at
-                            )
-                            VALUES (
-                                :title, :description, :slug, :image_url, :tracking_url, true, 
-                                :sector_id, :card_id, :start_date, :end_date, :conditions, 
-                                :eligible_cards, :reward_text, :reward_value, :reward_type,
-                                NOW(), NOW()
-                            )
-                            RETURNING id
-                        """), 
-                        {**data, "card_id": self.card_id}
-                    )
-                    campaign_id = result.fetchone()[0]
+                    print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {data['tracking_url']}")
+                    return existing[0]
+
+                print(f"   ✨ Creating: {data['title']}")
+                result = conn.execute(
+                    text("""
+                        INSERT INTO campaigns (
+                            title, description, slug, image_url, tracking_url, is_active, 
+                            sector_id, card_id, start_date, end_date, conditions, 
+                            eligible_cards, reward_text, reward_value, reward_type,
+                            created_at, updated_at
+                        )
+                        VALUES (
+                            :title, :description, :slug, :image_url, :tracking_url, true, 
+                            :sector_id, :card_id, :start_date, :end_date, :conditions, 
+                            :eligible_cards, :reward_text, :reward_value, :reward_type,
+                            NOW(), NOW()
+                        )
+                        RETURNING id
+                    """), 
+                    {**data, "card_id": self.card_id}
+                )
+                campaign_id = result.fetchone()[0]
                 
                 # Save brands (like other scrapers)
                 if brands and campaign_id:

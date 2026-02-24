@@ -195,10 +195,39 @@ class TurkiyeFinansScraper:
             self.driver.get(start_url)
             time.sleep(5)
             
-            # Scroll
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            # Scroll dynamically to load all campaigns
+            print("   📜 Scrolling to load all campaigns...")
+            
+            last_height = self.driver.execute_script("return document.body.scrollHeight")
+            scroll_attempts = 0
+            max_attempts = 15 # A reasonable limit to prevent true infinite loops
+            
+            while scroll_attempts < max_attempts:
+                # Scroll down to bottom
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                
+                # Wait for new elements to load
+                time.sleep(random.uniform(2.0, 3.5))
+                
+                # Calculate new scroll height and compare with last scroll height
+                new_height = self.driver.execute_script("return document.body.scrollHeight")
+                
+                if new_height == last_height:
+                    # Try one more time with a slightly different scroll to trigger lazy loading
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight - 100);")
+                    time.sleep(1)
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(2)
+                    
+                    new_height = self.driver.execute_script("return document.body.scrollHeight")
+                    if new_height == last_height:
+                        print(f"   ✅ Reached bottom after {scroll_attempts} scrolls.")
+                        break
+                
+                last_height = new_height
+                scroll_attempts += 1
+                print(f"   ⏬ Loaded more content (Scroll {scroll_attempts})...")
+            
             time.sleep(2)
             
             anchors = self.driver.find_elements(By.TAG_NAME, "a")
@@ -369,16 +398,7 @@ class TurkiyeFinansScraper:
                 }
 
                 if existing:
-                    print(f"   🔄 Updating: {title[:40]}")
-                    conn.execute(text("""
-                        UPDATE campaigns
-                        SET title=:title, description=:description, image_url=:image_url,
-                            start_date=:start_date, end_date=:end_date, sector_id=:sector_id,
-                            conditions=:conditions, eligible_cards=:eligible_cards,
-                            reward_text=:reward_text, reward_value=:reward_value,
-                            reward_type=:reward_type, updated_at=NOW()
-                        WHERE tracking_url=:tracking_url
-                    """), campaign_data)
+                    print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:40]}")
                     campaign_id = existing[0]
                 else:
                     print(f"   ✨ Creating: {title[:40]}")

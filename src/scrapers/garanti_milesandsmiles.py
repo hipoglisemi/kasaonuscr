@@ -222,6 +222,12 @@ class GarantiMilesAndSmilesScraper:
                        tracking_url: str, start_date, end_date, ai_data: Dict[str, Any]):
         """Save campaign to database"""
         with get_db_session() as db:
+            # Check if campaign already exists
+            existing = db.query(Campaign).filter(Campaign.tracking_url == tracking_url).first()
+            if existing:
+                print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")
+                return
+
             slug = get_unique_slug(title, db, Campaign)
             
             # Sector

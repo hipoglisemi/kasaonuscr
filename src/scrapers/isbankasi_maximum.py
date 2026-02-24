@@ -21,6 +21,14 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
+import sys
+
+# Virtual Display (for GitHub Actions / Headless)
+try:
+    from pyvirtualdisplay import Display
+    HAS_VIRTUAL_DISPLAY = True
+except ImportError:
+    HAS_VIRTUAL_DISPLAY = False
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -44,6 +52,7 @@ class IsbankMaximumScraper:
     
     def __init__(self):
         self.driver = None
+        self.display = None
         self.card_id = None
         self._init_card()
     
@@ -62,18 +71,21 @@ class IsbankMaximumScraper:
             print(f"✅ Found card: {self.BANK_NAME} {self.CARD_NAME} (ID: {self.card_id})")
     
     def _get_driver(self):
-        """
-        Initialize Selenium driver.
-        Strategy:
-        1. GitHub Actions: Use undetected_chromedriver (headless)
-        2. Local: Try connecting to debug Chrome (localhost:9222)
-        3. Local Fallback: Launch new undetected_chromedriver instance
-        """
+        """Initialize Selenium driver"""
+        if sys.platform.startswith('linux') and HAS_VIRTUAL_DISPLAY:
+            print("   🖥️ Starting Virtual Display (Xvfb)...")
+            try:
+                self.display = Display(visible=0, size=(1920, 1080))
+                self.display.start()
+            except Exception as e:
+                print(f"   ⚠️ Failed to start virtual display: {e}")
+
         if os.getenv('GITHUB_ACTIONS'):
             try:
                 import undetected_chromedriver as uc
                 options = uc.ChromeOptions()
-                options.add_argument('--headless=new') # Use new headless mode
+                if not self.display:
+                    options.add_argument('--headless=new') # Use new headless mode only if no display
                 options.add_argument('--no-sandbox')
                 options.add_argument('--disable-dev-shm-usage')
                 options.add_argument('--disable-gpu')
@@ -93,7 +105,8 @@ class IsbankMaximumScraper:
                     from selenium.webdriver.chrome.service import Service
                     from webdriver_manager.chrome import ChromeDriverManager
                     options = webdriver.ChromeOptions()
-                    options.add_argument('--headless=new')
+                    if not self.display:
+                        options.add_argument('--headless=new')
                     options.add_argument('--no-sandbox')
                     options.add_argument('--disable-dev-shm-usage')
                     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
@@ -649,8 +662,13 @@ class IsbankMaximumScraper:
                     self.driver.quit()
                 except:
                     pass
+            if hasattr(self, 'display') and self.display:
+                try:
+                    self.display.stop()
+                except:
+                    pass
 
 
 if __name__ == "__main__":
     scraper = IsbankMaximumScraper()
-    scraper.run(limit=5)  # Test with 5 campaigns
+    scraper.run()

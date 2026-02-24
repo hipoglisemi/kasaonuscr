@@ -190,17 +190,8 @@ class TEBScraper:
                 ).fetchone()
 
                 if existing:
+                    print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {data['title'][:50]}")
                     campaign_id = existing[0]
-                    print(f"   🔄 Updating: {data['title'][:50]}")
-                    conn.execute(text("""
-                        UPDATE campaigns
-                        SET title=:title, description=:description, image_url=:image_url,
-                            start_date=:start_date, end_date=:end_date, sector_id=:sector_id,
-                            conditions=:conditions, eligible_cards=:eligible_cards,
-                            reward_text=:reward_text, reward_value=:reward_value,
-                            reward_type=:reward_type, updated_at=NOW()
-                        WHERE tracking_url=:tracking_url
-                    """), {**data, "tracking_url": data["tracking_url"]})
                 else:
                     print(f"   ✨ Creating: {data['title'][:50]}")
                     result = conn.execute(text("""
