@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.models import Campaign
 from src.database import get_db_session
-from src.services.gemini_parser import parse_api_campaign
+from src.services.ai_parser import parse_campaign_data
 
 def fetch_html(url: str) -> str:
     """Attempts to fetch the HTML content of a URL."""
@@ -92,7 +92,10 @@ def run_autofix():
                 text_to_parse = html_text[:15000]
                 
                 print(f"   🤖 Sending {len(text_to_parse)} characters to Gemini AI for re-parsing...")
-                ai_data = parse_api_campaign(text_to_parse, c.tracking_url)
+                ai_data = parse_campaign_data(
+                    raw_text=text_to_parse,
+                    title=c.title,
+                )
                 
                 if not ai_data:
                     print(f"   ❌ Gemini AI failed to return data. Skipping.")

@@ -44,7 +44,7 @@ def archive_campaigns():
             
             deleted_count = 0
             for campaign in to_delete:
-                print(f"   ❌ Deleting: [{campaign.id}] {campaign.title[:50]}... (Ended: {campaign.end_date.date()})")
+                print(f"   ❌ Deleting: [{campaign.id}] {campaign.title[:50]}... (Ended: {campaign.end_date})")
                 db.delete(campaign)
                 deleted_count += 1
                 
@@ -65,7 +65,7 @@ def archive_campaigns():
             
             archived_count = 0
             for campaign in to_archive:
-                print(f"   📦 Archiving: [{campaign.id}] {campaign.title[:50]}... (Ended: {campaign.end_date.date()})")
+                print(f"   📦 Archiving: [{campaign.id}] {campaign.title[:50]}... (Ended: {campaign.end_date})")
                 campaign.is_active = False
                 archived_count += 1
                 
