@@ -66,7 +66,6 @@ jobs:
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        ZENROWS_API_KEY: ${{ secrets.ZENROWS_API_KEY }}
       run: |
         # Run with Virtual Display to support both Selenium and Playwright
         xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python -m src.scrapers.${{ matrix.scraper }}
