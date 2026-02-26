@@ -12,6 +12,7 @@ from src.models import Campaign, Bank, Card, Sector, Brand, CampaignBrand
 from src.services.ai_parser import parse_api_campaign
 from src.utils.slug_generator import get_unique_slug
 from src.utils.cache_manager import clear_cache
+from sqlalchemy.exc import IntegrityError
 
 class GarantiShopAndFlyScraper:
     """Scraper for Garanti Shop&Fly campaigns (UIkit based)."""
@@ -280,12 +281,17 @@ class GarantiShopAndFlyScraper:
                 for brand_name in brand_names:
                     brand = db.query(Brand).filter(Brand.name == brand_name).first()
                     if not brand:
-                        brand = Brand(name=brand_name, slug=brand_name.lower().replace(' ', '-'), is_active=True)
-                        db.add(brand)
-                        db.flush()
+                        try:
+                            with db.begin_nested():
+                                brand = Brand(name=brand_name, slug=brand_name.lower().replace(' ', '-'), is_active=True)
+                                db.add(brand)
+                                db.flush()
+                        except IntegrityError:
+                            brand = db.query(Brand).filter(Brand.name == brand_name).first()
                     
-                    campaign_brand = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)
-                    db.add(campaign_brand)
+                    if brand:
+                        campaign_brand = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)
+                        db.add(campaign_brand)
             
             db.commit()
             print(f"   ✅ Saved: {campaign.title[:50]}... (Reward: {campaign.reward_text})")

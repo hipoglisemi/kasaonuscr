@@ -61,6 +61,21 @@ def run_autofix():
                 if not c.reward_text or c.reward_text.strip() == "":
                     is_defective = True
                     reasons.append("Missing Reward Text")
+                if c.reward_value is None:
+                    is_defective = True
+                    reasons.append("Missing Reward Value")
+                if not c.reward_type or c.reward_type.strip() == "":
+                    is_defective = True
+                    reasons.append("Missing Reward Type")
+                if not c.eligible_cards or c.eligible_cards.strip() == "":
+                    is_defective = True
+                    reasons.append("Missing Eligible Cards")
+                if not c.start_date:
+                    is_defective = True
+                    reasons.append("Missing Start Date")
+                if not c.end_date:
+                    is_defective = True
+                    reasons.append("Missing End Date")
                 if not c.conditions or c.conditions.strip() == "":
                     is_defective = True
                     reasons.append("Missing Conditions")
@@ -115,6 +130,43 @@ def run_autofix():
                         print(f"   ✨ Repaired Reward Text!")
                         c.reward_text = ai_data["reward_text"]
                         updated = True
+                        
+                if c.reward_value is None:
+                    if ai_data.get("reward_value") is not None:
+                        print(f"   ✨ Repaired Reward Value: {ai_data['reward_value']}")
+                        c.reward_value = ai_data["reward_value"]
+                        updated = True
+                        
+                if not c.reward_type or c.reward_type.strip() == "":
+                    if ai_data.get("reward_type"):
+                        print(f"   ✨ Repaired Reward Type: {ai_data['reward_type']}")
+                        c.reward_type = ai_data["reward_type"]
+                        updated = True
+                        
+                if not c.eligible_cards or c.eligible_cards.strip() == "":
+                    if ai_data.get("cards") and len(ai_data["cards"]) > 0:
+                        cards_str = ", ".join(ai_data["cards"])
+                        print(f"   ✨ Repaired Eligible Cards: {cards_str}")
+                        c.eligible_cards = cards_str
+                        updated = True
+
+                if not c.start_date:
+                    if ai_data.get("start_date"):
+                        print(f"   ✨ Repaired Start Date: {ai_data['start_date']}")
+                        from datetime import datetime
+                        try:
+                            c.start_date = datetime.strptime(ai_data["start_date"], "%Y-%m-%d")
+                            updated = True
+                        except: pass
+
+                if not c.end_date:
+                    if ai_data.get("end_date"):
+                        print(f"   ✨ Repaired End Date: {ai_data['end_date']}")
+                        from datetime import datetime
+                        try:
+                            c.end_date = datetime.strptime(ai_data["end_date"], "%Y-%m-%d")
+                            updated = True
+                        except: pass
                         
                 if not c.conditions or c.conditions.strip() == "":
                     if ai_data.get("conditions"):

@@ -72,17 +72,17 @@ class IsbankMaximumGencScraper:
             try:
                 import undetected_chromedriver as uc
                 options = uc.ChromeOptions()
-                if not self.display:
-                    options.add_argument('--headless=new') # Use new headless mode only if no display
                 options.add_argument('--no-sandbox')
+                options.add_argument('--disable-setuid-sandbox')
                 options.add_argument('--disable-dev-shm-usage')
                 options.add_argument('--disable-gpu')
+                options.add_argument('--disable-software-rasterizer')
                 options.add_argument('--window-size=1920,1080')
                 # Add dummy user agent to prevent blocks in headless
                 options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
                 
                 # In Github Actions we let uc find the installed chrome
-                driver = uc.Chrome(options=options)
+                driver = uc.Chrome(options=options, headless=bool(not self.display))
                 print("✅ Connected to undetected_chromedriver (GitHub Actions mode)")
                 return driver
             except Exception as e:
@@ -96,7 +96,9 @@ class IsbankMaximumGencScraper:
                     if not self.display:
                         options.add_argument('--headless=new')
                     options.add_argument('--no-sandbox')
+                    options.add_argument('--disable-setuid-sandbox')
                     options.add_argument('--disable-dev-shm-usage')
+                    options.add_argument('--disable-software-rasterizer')
                     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
                     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
                     print("✅ Connected to standard headless chrome (Fallback)")

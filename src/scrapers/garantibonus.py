@@ -12,6 +12,7 @@ from decimal import Decimal
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from ..database import get_db_session
 from ..models import Bank, Card, Sector, Brand, Campaign, CampaignBrand
@@ -339,20 +340,24 @@ class GarantiBonusScraper:
                 continue
             
             # Create new brand
-            brand = Brand(
-                name=name,
-                sector_id=sector_id or 1,  # Default to first sector if none
-                aliases=[],
-                is_active=True
-            )
-            self.db.add(brand)
-            self.db.flush()
+            try:
+                with self.db.begin_nested():
+                    brand = Brand(
+                        name=name,
+                        sector_id=sector_id or 1,  # Default to first sector if none
+                        aliases=[],
+                        is_active=True
+                    )
+                    self.db.add(brand)
+                    self.db.flush()
+            except IntegrityError:
+                brand = self.db.query(Brand).filter(Brand.name == name).first()
             
-            # Add to cache
-            self.brand_cache[name_lower] = brand
-            brand_ids.append(str(brand.id))
-            
-            print(f"   ➕ Created new brand: {name}")
+            if brand:
+                # Add to cache
+                self.brand_cache[name_lower] = brand
+                brand_ids.append(str(brand.id))
+                print(f"   ➕ Created/Fetched brand: {name}")
         
         return brand_ids
 
