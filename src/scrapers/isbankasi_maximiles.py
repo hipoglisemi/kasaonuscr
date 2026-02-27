@@ -163,17 +163,35 @@ class IsbankMaximilesScraper:
                 
                 scroll_count += 1
                 try:
-                    load_more_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'Daha Fazla')]")
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", load_more_btn)
-                    time.sleep(1.5)
-                    self.driver.execute_script("arguments[0].click();", load_more_btn)
-                    time.sleep(2.5)
-                    print(f"   ⏬ Loaded more campaigns (Scroll {scroll_count})...")
-                except:
-                    # Break if button not found
+                    # Try finding button first
+                    load_more_btns = self.driver.find_elements(By.XPATH, "//button[contains(text(), 'Daha Fazla')]") or \
+                                     self.driver.find_elements(By.CSS_SELECTOR, "a.CampAllShow")
+                    
+                    if load_more_btns and load_more_btns[0].is_displayed():
+                        btn = load_more_btns[0]
+                        self.driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+                        time.sleep(1)
+                        self.driver.execute_script("arguments[0].click();", btn)
+                        time.sleep(3)
+                        print(f"   ⏬ Clicked 'Load More' (Scroll {scroll_count})...")
+                    else:
+                        # Fallback to Infinite Scroll (JS)
+                        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                        time.sleep(3)
+                        print(f"   ⏬ Scrolled to bottom (Scroll {scroll_count})...")
+                        
+                        # Check if count increased, if not, maybe we are at the end
+                        new_soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+                        new_count = len([a for a in new_soup.find_all('a', href=True) if '/kampanyalar/' in a['href']])
+                        if new_count <= count:
+                            print("   ℹ️ No more campaigns loading via scroll.")
+                            break
+                        count = new_count
+                except Exception as e:
+                    print(f"   ⚠️ Scroll error: {e}")
                     break
                 
-                if scroll_count > 50:
+                if scroll_count > 30:
                     break
 
         except Exception as e:

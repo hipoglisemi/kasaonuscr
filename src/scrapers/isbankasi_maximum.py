@@ -204,12 +204,19 @@ class IsbankMaximumScraper:
                             break
                     
                     scroll_count += 1
-                    load_more_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'Daha Fazla')]")
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", load_more_btn)
-                    time.sleep(1.5)
-                    self.driver.execute_script("arguments[0].click();", load_more_btn)
-                    time.sleep(2.5)
-                    print(f"   ⏬ Loaded more campaigns (Scroll {scroll_count})...")
+                    try:
+                        # The browser subagent found: a.CampAllShow
+                        load_more_btn = WebDriverWait(self.driver, 5).until(
+                            EC.element_to_be_clickable((By.CSS_SELECTOR, "a.CampAllShow"))
+                        )
+                        self.driver.execute_script("arguments[0].scrollIntoView(true);", load_more_btn)
+                        time.sleep(1.5)
+                        self.driver.execute_script("arguments[0].click();", load_more_btn)
+                        time.sleep(2.5)
+                        print(f"   ⏬ Loaded more campaigns (Scroll {scroll_count})...")
+                    except Exception as scroll_e:
+                        print(f"   ℹ️ Load more button not found or not clickable: {scroll_e}")
+                        break
                     
             except Exception as e:
                 print(f"   ⚠️ Scroll loop ended/failed: {e}")

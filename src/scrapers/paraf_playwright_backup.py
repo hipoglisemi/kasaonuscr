@@ -36,7 +36,7 @@ class ParafScraper:
         }
     ]
     
-    def __init__(self, max_campaigns: int = 10, headless: bool = True):
+    def __init__(self, max_campaigns: int = 999, headless: bool = True):
         self.max_campaigns = max_campaigns
         self.headless = headless
         self.db: Optional[Session] = None
@@ -329,13 +329,38 @@ class ParafScraper:
             self.brand_cache[b.name.lower()] = b
 
     def _get_or_create_card(self, name: str) -> Card:
+        """Get or create card, but only for known Paraf variants."""
+        name_lower = name.lower()
+        
+        # Mapping to prevent AI from creating variants
+        if "fly" in name_lower:
+            name = "Parafly"
+        elif "troy" in name_lower:
+            name = "Paraf TROY"
+        else:
+            name = "Paraf"
+            
         key = name.lower()
         if key in self.card_cache:
             return self.card_cache[key]
         
-        card = Card(bank_id=self.bank_cache.id, name=name, slug=key.replace(" ", "-"), is_active=True)
-        self.db.add(card)
-        self.db.commit()
+        # Check DB
+        card = self.db.query(Card).filter(
+            Card.bank_id == self.bank_cache.id,
+            Card.name == name
+        ).first()
+        
+        if not card:
+            print(f"   ➕ Creating standard card: {name}")
+            card = Card(
+                bank_id=self.bank_cache.id,
+                name=name,
+                slug=name.lower().replace(" ", "-"),
+                is_active=True
+            )
+            self.db.add(card)
+            self.db.flush()
+            
         self.card_cache[key] = card
         return card
 

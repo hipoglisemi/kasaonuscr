@@ -92,7 +92,10 @@ class YapikrediPlayScraper:
         if not url_suffix:
             return
 
-        full_url = f"{self.BASE_URL}{url_suffix}"
+        if url_suffix.startswith('http'):
+            full_url = url_suffix
+        else:
+            full_url = f"{self.BASE_URL}{url_suffix}"
         
         # Check if exists
         existing = self.db.query(Campaign).filter(Campaign.tracking_url == full_url).first()

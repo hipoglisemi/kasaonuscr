@@ -168,42 +168,71 @@ class ZiraatScraper:
             print(f"   -> Found {len(campaigns)} items on page 1.")
             
             # Fetch remaining pages via AJAX
-            listcount = len(items)
+            # The API returns JSON, not HTML snippets!
             page = 2
             
             while True:
-                # The 't' parameter is usually 0 for all campaigns
-                ajax_url = f"https://www.bankkart.com.tr/App_Plugins/ZiraatBankkart/DesignBankkart/GetMoreCamp.aspx?id={listcount}&t=0"
-                resp = self.session.post(ajax_url, timeout=30)
+                # API Example: https://www.bankkart.com.tr/api/Campaigns/GetMoreShow?indexNo=2&type=Bireysel
+                ajax_url = f"https://www.bankkart.com.tr/api/Campaigns/GetMoreShow?indexNo={page}&type=Bireysel"
+                print(f"   -> Fetching API page {page}: {ajax_url}")
                 
-                if not resp.text or not resp.text.strip():
-                    break
+                try:
+                    resp = self.session.get(ajax_url, timeout=30)
+                    if resp.status_code != 200:
+                        print(f"   ⚠️ API returned status {resp.status_code}")
+                        break
                     
-                ajax_soup = BeautifulSoup(resp.text, 'html.parser')
-                new_items = ajax_soup.select(".campaign-box")
-                
-                if not new_items:
-                    break
-                    
-                for item in new_items:
-                    href = item.get('href')
-                    if not href: continue
-                    full_url = urljoin(self.BASE_URL, href)
-                    img = item.select_one('.front img')
-                    img_url = urljoin(self.BASE_URL, img['src']) if img else None
-                    date_el = item.select_one('.bottom .date')
-                    end_date_str = date_el.text.strip() if date_el else None
-                    
-                    # Avoid duplicates
-                    if not any(c['url'] == full_url for c in campaigns):
-                        campaigns.append({"url": full_url, "image_url": img_url, "list_end_date": end_date_str})
+                    try:
+                        data = resp.json()
+                    except:
+                        print(f"   ⚠️ Failed to parse JSON at page {page}")
+                        break
                         
-                listcount += len(new_items)
-                print(f"   -> Found {len(new_items)} items on page {page}.")
-                page += 1
-                time.sleep(1) # Be nice
+                    if not isinstance(data, dict):
+                        print(f"   ℹ️ Unexpected API response format at page {page}: {type(data)}")
+                        break
+                        
+                    new_items = data.get('Items', [])
+                    
+                    if not new_items:
+                        print(f"   ℹ️ No more items found in API response at page {page}.")
+                        break
+                        
+                    for item in new_items:
+                        seo_name = item.get('SeoName')
+                        cat_seo = item.get('Category', {}).get('SeoName', 'diger-kampanyalar')
+                        
+                        if not seo_name: continue
+                        
+                        # Example URL: https://www.bankkart.com.tr/kampanyalar/market-ve-gida/ramazan-alisverislerinize-3000-tl-bankkart-lira
+                        # API gives cat_seo and seo_name
+                        full_url = f"https://www.bankkart.com.tr/kampanyalar/{cat_seo}/{seo_name}"
+                        
+                        # Extract list info
+                        img_url = urljoin(self.BASE_URL, item.get('ImageUrl')) if item.get('ImageUrl') else None
+                        
+                        # Date parsing from JSON (ISO format: 2026-12-31T23:59:00+03:00)
+                        end_date_iso = item.get('EndDate')
+                        end_date_str = None
+                        if end_date_iso:
+                            try:
+                                dt = datetime.fromisoformat(end_date_iso)
+                                end_date_str = dt.strftime("%d.%m.%Y")
+                            except: pass
+                        
+                        # Avoid duplicates
+                        if not any(c['url'] == full_url for c in campaigns):
+                            campaigns.append({"url": full_url, "image_url": img_url, "list_end_date": end_date_str})
+                            
+                    print(f"   -> Found {len(new_items)} items on page {page}.")
+                    page += 1
+                    time.sleep(1.0) # Be nice
+                    
+                except Exception as e:
+                    print(f"   ⚠️ JSON/API error on page {page}: {e}")
+                    break
                 
-                # Hard limit to prevent infinite loops if something goes wrong
+                # Hard limit to prevent infinite loops (133 items / 8 per page ~= 17 pages)
                 if page > 50:
                     break
             
