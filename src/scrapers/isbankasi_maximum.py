@@ -358,11 +358,14 @@ class IsbankMaximumScraper:
             if participation_text:
                 full_text += f"\nKATILIM ŞEKLİ: {participation_text}"
             
-            # 🔥 CRITICAL: Extract image with specific selector
+            # 🔥 CRITICAL: Extract image with specific selector and handle lazy loading
             image_url = None
             img_el = soup.select_one("img[id$='CampaignImage']")
-            if img_el and img_el.get('src'):
-                image_url = urljoin(self.BASE_URL, img_el['src'])
+            if img_el:
+                # Try specific lazy loading attributes first, then fallback to src
+                src = img_el.get('data-original') or img_el.get('data-src') or img_el.get('src')
+                if src and not src.startswith('data:'):
+                    image_url = urljoin(self.BASE_URL, src)
             
             return {
                 'title': title,
