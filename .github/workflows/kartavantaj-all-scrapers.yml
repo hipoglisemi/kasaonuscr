@@ -25,6 +25,7 @@ jobs:
           - isbankasi_maximiles
           - isbankasi_maximum
           - paraf
+          - paraf_genc
           - qnb
           - teb
           - turkiyefinans
