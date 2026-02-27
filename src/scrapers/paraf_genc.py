@@ -179,55 +179,60 @@ class ParafGencScraper:
 
     def _save_campaign(self, data: Dict[str, Any], url: str, image_url: str, card_name: str):
         """Save to DB"""
-        
-        # Card
-        primary_card = self._get_or_create_card(card_name)
-        
-        # Sector
-        sector = self._get_sector(data.get("sector"))
-        
-        # Brands
-        brand_ids = self._get_or_create_brands(data.get("brands", []), sector.id if sector else None)
-        
-        # Slug
-        text = data.get("title", "").lower()
-        text = text.replace("ı", "i").replace("ğ", "g").replace("ü", "u").replace("ş", "s").replace("ö", "o").replace("ç", "c")
-        slug = re.sub(r'[^a-z0-9-]', '-', text)
-        slug = re.sub(r'-+', '-', slug).strip('-')
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-        slug = f"{slug}-{url_hash}"
-        
-        campaign = Campaign(
-            card_id=primary_card.id,
-            sector_id=sector.id if sector else None,
-            title=data.get("title"),
-            slug=slug,
-            description=data.get("description"),
-            conditions="\n".join(data.get("conditions", [])),
-            start_date=data.get("start_date"),
-            end_date=data.get("end_date"),
-            reward_type=data.get("reward_type"),
-            reward_value=data.get("reward_value"),
-            reward_text=data.get("reward_text"),
-            ai_marketing_text=data.get("description"),
-            eligible_cards=card_name,
-            category=data.get("category"),
-            badge_color=data.get("badge_color"),
-            card_logo_url="https://www.parafgenc.com.tr/content/dam/parafree/paraf-genc-logolar/paraf-genc-logo.png",
-            tracking_url=url,
-            image_url=image_url,
-            is_active=True
-        )
-        
-        self.db.add(campaign)
-        self.db.commit()
-        
-        for bid in brand_ids:
-            try:
-                cb = CampaignBrand(campaign_id=campaign.id, brand_id=bid)
-                self.db.add(cb)
-            except: pass
-        self.db.commit()
+        try:
+            # Refresh card cache to avoid stale objects
+            primary_card = self._get_or_create_card(card_name)
+            
+            # Sector
+            sector = self._get_sector(data.get("sector"))
+            
+            # Brands
+            brand_ids = self._get_or_create_brands(data.get("brands", []), sector.id if sector else None)
+            
+            # Slug
+            text = data.get("title", "").lower()
+            text = text.replace("ı", "i").replace("ğ", "g").replace("ü", "u").replace("ş", "s").replace("ö", "o").replace("ç", "c")
+            slug = re.sub(r'[^a-z0-9-]', '-', text)
+            slug = re.sub(r'-+', '-', slug).strip('-')
+            url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+            slug = f"{slug}-{url_hash}"
+            
+            campaign = Campaign(
+                card_id=primary_card.id,
+                sector_id=sector.id if sector else None,
+                title=data.get("title"),
+                slug=slug,
+                description=data.get("description"),
+                conditions="\n".join(data.get("conditions", [])),
+                start_date=data.get("start_date"),
+                end_date=data.get("end_date"),
+                reward_type=data.get("reward_type"),
+                reward_value=data.get("reward_value"),
+                reward_text=data.get("reward_text"),
+                ai_marketing_text=data.get("description"),
+                eligible_cards=card_name,
+                category=data.get("category"),
+                badge_color=data.get("badge_color"),
+                card_logo_url="https://www.parafgenc.com.tr/content/dam/parafree/paraf-genc-logolar/paraf-genc-logo.png",
+                tracking_url=url,
+                image_url=image_url,
+                is_active=True
+            )
+            
+            self.db.add(campaign)
+            self.db.commit()
+            
+            for bid in brand_ids:
+                try:
+                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=bid)
+                    self.db.add(cb)
+                except: pass
+            self.db.commit()
+            print(f"      ✅ Saved: {data.get('title')}")
+            
+        except Exception as e:
+            print(f"      ❌ Save error: {e}")
+            self.db.rollback()
 
     def _load_cache(self):
         bank = self.db.query(Bank).filter(Bank.slug == "halkbank").first()
