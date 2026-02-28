@@ -48,8 +48,8 @@ class IsbankMaximilesScraper:
         """Get Maximiles card ID from database"""
         with get_db_session() as db:
             card = db.query(Card).join(Bank).filter(
-                Bank.name == self.BANK_NAME,
-                Card.name == self.CARD_NAME
+                Bank.slug == "isbankasi",
+                Card.slug == "maximiles"
             ).first()
             
             if not card:
@@ -431,7 +431,7 @@ class IsbankMaximilesScraper:
                 ).first()
                 if exists:
                     print(f"   ⏭️  Skipped (Already exists): {url}")
-                    return
+                    return "skipped"
         except Exception as e:
             print(f"   ⚠️ URL check failed: {e}")
             pass
@@ -441,7 +441,7 @@ class IsbankMaximilesScraper:
         data = self._extract_campaign_data(url)
         if not data:
             print("   ⏭️  Skipped")
-            return
+            return "skipped"
         
         ai_result = parse_api_campaign(
             title=data['title'],
@@ -449,7 +449,7 @@ class IsbankMaximilesScraper:
             content_html=data['full_text'],
             bank_name=self.BANK_NAME
         )
-        self._save_campaign(data['title'], data['image_url'], data['date_text'], data['source_url'], ai_result)
+        return self._save_campaign(data['title'], data['image_url'], data['date_text'], data['source_url'], ai_result)
     
     def _save_campaign(self, title: str, image_url: Optional[str], date_text: str, source_url: str, ai_data: Dict[str, Any]):
         print(f"   💾 Saving campaign: {title[:30]}...")
@@ -551,10 +551,12 @@ class IsbankMaximilesScraper:
 
                 db.commit()
                 print(f"   ✅ Saved: {campaign.title} (ID: {campaign.id})")
+                return "saved"
         except Exception as e:
             print(f"   ❌ Save Failed: {e}")
             import traceback
             traceback.print_exc()
+            return "error"
 
     def run(self, limit: Optional[int] = None):
         try:
@@ -562,11 +564,28 @@ class IsbankMaximilesScraper:
             self.driver = self._get_driver()
             self.driver.set_page_load_timeout(60)
             urls = self._fetch_campaign_urls(limit=limit)
+            
+            success_count = 0
+            skipped_count = 0
+            failed_count = 0
+            
             for i, url in enumerate(urls, 1):
                 print(f"\n[{i}/{len(urls)}]")
-                self._process_campaign(url)
+                try:
+                    res = self._process_campaign(url)
+                    if res == "saved":
+                        success_count += 1
+                    elif res == "skipped":
+                        skipped_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
+                    print(f"❌ Error processing {url}: {e}")
+                    failed_count += 1
+                    
                 time.sleep(1.5)
-            print(f"\n🏁 Scraping finished. Processed {len(urls)} campaigns.")
+            print(f"\n🏁 Scraping finished.")
+            print(f"✅ Özet: {len(urls)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
         except Exception as e:
             print(f"❌ Scraper error: {e}")
             raise

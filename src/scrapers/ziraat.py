@@ -124,13 +124,13 @@ class ZiraatScraper:
         self.parser = AIParser()
         
         # Ensure Bank & Card
-        self.bank = self.db.query(Bank).filter(Bank.name == 'Ziraat Bankası').first()
+        self.bank = self.db.query(Bank).filter(Bank.slug == 'ziraat').first()
         if not self.bank:
             self.bank = Bank(name='Ziraat Bankası', slug='ziraat')
             self.db.add(self.bank)
             self.db.commit()
             
-        self.card = self.db.query(Card).filter(Card.name == 'Bankkart').first()
+        self.card = self.db.query(Card).filter(Card.slug == 'bankkart').first()
         if not self.card:
              self.card = Card(bank_id=self.bank.id, name='Bankkart', slug='bankkart', is_active=True)
              self.db.add(self.card)
@@ -307,7 +307,7 @@ class ZiraatScraper:
             
             if not ai_data:
                 print("   ❌ AI Parsing failed.")
-                return
+                return "error"
 
             title = ai_data.get("title", "Kampanya")
             desc = ai_data.get("description", "")
@@ -373,7 +373,7 @@ class ZiraatScraper:
             existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
             if existing:
                 print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")
-                return
+                return "skipped"
 
             campaign = Campaign(
                 card_id=self.card_id,
@@ -420,11 +420,13 @@ class ZiraatScraper:
                         self.db.commit()
 
             print(f"   ✅ Saved: {title} | End: {vu}")
+            return "saved"
             
         except Exception as e:
             print(f"   ❌ Error processing {url}: {e}")
             self.db.rollback()
             traceback.print_exc()
+            return "error"
 
     def run(self):
         print("🚀 Starting Ziraat Bank Scraper...")
@@ -435,13 +437,23 @@ class ZiraatScraper:
         limit = int(max_campaigns) if max_campaigns else 999
         
         count = 0
+        success_count = 0
+        skipped_count = 0
+        failed_count = 0
+
         for camp in campaigns:
             if count >= limit:
                 print(f"🛑 Reached MAX_CAMPAIGNS_PER_RUN limit ({limit})")
                 break
-            self._process_campaign(camp)
+            
+            res = self._process_campaign(camp)
+            if res == "saved": success_count += 1
+            elif res == "skipped": skipped_count += 1
+            else: failed_count += 1
+            
             count += 1
             time.sleep(2)
+        print(f"✅ Özet: {len(campaigns)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
         print("🏁 Finished.")
 
 if __name__ == "__main__":

@@ -60,8 +60,8 @@ class IsbankMaximumScraper:
         """Get Maximum card ID from database"""
         with get_db_session() as db:
             card = db.query(Card).join(Bank).filter(
-                Bank.name == self.BANK_NAME,
-                Card.name == self.CARD_NAME
+                Bank.slug == "isbankasi",
+                Card.slug == "maximum"
             ).first()
             
             if not card:
@@ -434,7 +434,7 @@ class IsbankMaximumScraper:
                 ).first()
                 if exists:
                     print(f"   ⏭️  Skipped (Already exists): {url}")
-                    return
+                    return "skipped"
         except Exception as e:
             print(f"   ⚠️ URL check failed: {e}")
             # Continue if check fails, better to re-process than miss
@@ -447,7 +447,7 @@ class IsbankMaximumScraper:
         data = self._extract_campaign_data(url)
         if not data:
             print("   ⏭️  Skipped (expired or invalid)")
-            return
+            return "skipped"
         
         # Parse with AI
         ai_result = parse_api_campaign(
@@ -458,7 +458,7 @@ class IsbankMaximumScraper:
         )
         
         # Save to database
-        self._save_campaign(
+        return self._save_campaign(
             title=data['title'],
             image_url=data['image_url'],
             date_text=data['date_text'],
@@ -478,7 +478,7 @@ class IsbankMaximumScraper:
                 # Check card ID validity
                 if not self.card_id:
                     print("   ❌ Error: self.card_id is not set!")
-                    return
+                    return "error"
 
                 # Generate slug
                 slug = get_unique_slug(ai_data.get('short_title') or title, db, Campaign)
@@ -491,7 +491,7 @@ class IsbankMaximumScraper:
                 
                 if existing:
                     print(f"   ⚠️ Campaign already exists: {slug}")
-                    return
+                    return "skipped"
                 
                 # Map sector
                 sector_name = ai_data.get('sector', 'Diğer')
@@ -635,10 +635,12 @@ class IsbankMaximumScraper:
 
                 db.commit()
                 print(f"   ✅ Saved: {campaign.title} (ID: {campaign.id})")
+                return "saved"
         except Exception as e:
             print(f"   ❌ Save Failed: {e}")
             import traceback
             traceback.print_exc()
+            return "error"
     
     def run(self, limit: Optional[int] = None):
         """
@@ -658,12 +660,27 @@ class IsbankMaximumScraper:
             urls = self._fetch_campaign_urls(limit=limit)
             
             # Process each campaign
+            success_count = 0
+            skipped_count = 0
+            failed_count = 0
             for i, url in enumerate(urls, 1):
                 print(f"\n[{i}/{len(urls)}]")
-                self._process_campaign(url)
+                try:
+                    res = self._process_campaign(url)
+                    if res == "saved":
+                        success_count += 1
+                    elif res == "skipped":
+                        skipped_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
+                    print(f"❌ Error processing {url}: {e}")
+                    failed_count += 1
+                    
                 time.sleep(1.5)  # Be nice to the server
             
-            print(f"\n🏁 Scraping finished. Processed {len(urls)} campaigns.")
+            print(f"\n🏁 Scraping finished.")
+            print(f"✅ Özet: {len(urls)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
             
         except Exception as e:
             print(f"❌ Scraper error: {e}")

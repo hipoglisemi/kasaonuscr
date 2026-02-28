@@ -22,7 +22,7 @@ class EnparaScraper:
     BASE_URL = 'https://www.enpara.com'
     LIST_URL = 'https://www.enpara.com/kampanyalar'
     BANK_NAME = 'Enpara'
-    CARD_NAME = 'Enpara Kredi Kartı'
+    CARD_NAME = 'Enpara' # Updated per user request
     
     HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -37,12 +37,14 @@ class EnparaScraper:
         self.card = self._get_or_create_card()
         
     def _get_or_create_bank(self) -> Bank:
-        bank = self.db.query(Bank).filter(Bank.name == self.BANK_NAME).first()
+        # Search by slug to be immune to name changes from admin panel
+        bank_slug = "enpara"
+        bank = self.db.query(Bank).filter(Bank.slug == bank_slug).first()
         if not bank:
             print(f"✨ Creating bank: {self.BANK_NAME}")
             bank = Bank(
                 name=self.BANK_NAME, 
-                slug="enpara", 
+                slug=bank_slug, 
                 is_active=True,
                 logo_url="/logos/cards/enpara.png" # Standard path
             )
@@ -52,13 +54,19 @@ class EnparaScraper:
         return bank
 
     def _get_or_create_card(self) -> Card:
-        card = self.db.query(Card).filter(Card.name == self.CARD_NAME, Card.bank_id == self.bank.id).first()
+        # User may change the name to 'Enpara' instead of 'Enpara Kredi Kartı'
+        card_slug = "enpara-kredi-karti"
+        card = self.db.query(Card).filter(Card.slug == card_slug).first()
+        if not card:
+            # Fallback to older slug just in case
+            card = self.db.query(Card).filter(Card.slug == "enpara").first()
+
         if not card:
             print(f"💳 Creating card: {self.CARD_NAME}")
             card = Card(
                 name=self.CARD_NAME,
                 bank_id=self.bank.id,
-                slug="enpara-kredi-karti",
+                slug=card_slug,
                 card_type="credit",
                 is_active=True
             )
@@ -306,12 +314,23 @@ class EnparaScraper:
             print(f"   Using limit: {limit}")
             
         success_count = 0
+        skipped_count = 0
+        failed_count = 0
+
         for link in links:
-            if self._process_campaign(link):
-                success_count += 1
+            try:
+                # _process_campaign could be modified to return a status string
+                # For now, we assume True is added, None/False is failed/skipped
+                result = self._process_campaign(link)
+                if result:
+                    success_count += 1
+                else:
+                    failed_count += 1
+            except Exception as e:
+                failed_count += 1
             time.sleep(1) # Soft rate limiting
             
-        print(f"✅ Scraper finished. Success: {success_count}/{len(links)}")
+        print(f"\n✅ Özet: {len(links)} bulundu, {success_count} eklendi, {failed_count} atlandı/hata aldı.")
         
         if success_count > 0:
             print("🧹 Clearing cache...")

@@ -180,7 +180,7 @@ class QNBScraper:
 
                 if existing:
                     print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {data['title'][:50]}")
-                    campaign_id = existing[0]
+                    return "skipped"
                 else:
                     print(f"   ✨ Creating: {data['title'][:50]}")
                     result = conn.execute(text("""
@@ -233,10 +233,10 @@ class QNBScraper:
                             """), {"campaign_id": campaign_id, "brand_id": brand_id})
                             print(f"      🔗 Linked Brand: {brand_name}")
 
+            return "saved"
         except Exception as e:
             print(f"   ❌ DB Error: {e}")
-
-        return campaign_id
+            return "error"
 
     def _process_item(self, item: dict):
         """Process a single campaign item from the API."""
@@ -244,7 +244,7 @@ class QNBScraper:
         title = item.get("Title", "").strip()
         if not title:
             print("   ⚠️  Skipping: No title found.")
-            return
+            return "skipped"
 
         seo = item.get("SeoProperty") or {}
         seo_name = seo.get("Name") or ""
@@ -325,7 +325,7 @@ class QNBScraper:
             "reward_type": ai_data.get("reward_type"),
         }
 
-        self._save_to_db(campaign_data, ai_data.get("brands", []))
+        return self._save_to_db(campaign_data, ai_data.get("brands", []))
 
     def run(self, limit=1000):
         """Main entry point."""
@@ -352,8 +352,13 @@ class QNBScraper:
             title = item.get("Title", "?")
             print(f"[{i+1}/{len(items)}] {title[:60]}")
             try:
-                self._process_item(item)
-                success += 1
+                res = self._process_item(item)
+                if res == "saved":
+                    success += 1
+                elif res == "skipped":
+                    skipped += 1
+                else:
+                    failed += 1
             except Exception as e:
                 print(f"   ❌ Failed: {e}")
                 failed += 1
@@ -362,9 +367,7 @@ class QNBScraper:
             time.sleep(0.5)
 
         print(f"\n🏁 QNB Scraper Finished.")
-        print(f"   ✅ Success: {success}")
-        print(f"   ⏭️  Skipped: {skipped}")
-        print(f"   ❌ Failed: {failed}")
+        print(f"✅ Özet: {len(items)} bulundu, {success} eklendi, {skipped + failed} atlandı/hata aldı.")
 
 
 if __name__ == "__main__":

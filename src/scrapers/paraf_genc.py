@@ -76,18 +76,27 @@ class ParafGencScraper:
             
             # 2. Process each campaign
             success_count = 0
+            skipped_count = 0
+            failed_count = 0
             for i, campaign_data in enumerate(campaigns, 1):
                 url = urljoin(source['base'], campaign_data.get('url', ''))
                 print(f"   [{i}/{len(campaigns)}] {url}")
                 
                 try:
-                    if self._scrape_detail(campaign_data, url, source):
+                    res = self._scrape_detail(campaign_data, url, source)
+                    if res == "saved":
                         success_count += 1
+                    elif res == "skipped":
+                        skipped_count += 1
+                    else:
+                        failed_count += 1
+                        
                     time.sleep(1)  # Rate limiting
                 except Exception as e:
                     print(f"      ❌ Error: {e}")
+                    failed_count += 1
                     
-            print(f"   ✅ Successfully saved {success_count}/{len(campaigns)} campaigns")
+            print(f"   ✅ Özet: {len(campaigns)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
             
         except Exception as e:
             print(f"   ❌ Source Error: {e}")
@@ -119,7 +128,7 @@ class ParafGencScraper:
         existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
         if existing:
             print(f"      ⏭️ Skipped (Already exists)")
-            return False
+            return "skipped"
 
         try:
             response = requests.get(url, timeout=30)
@@ -139,7 +148,7 @@ class ParafGencScraper:
             
             if len(raw_text) < 30:
                 print("      ❌ Content too short")
-                return False
+                return "skipped"
 
             # Fix image URL
             image_url = self._fix_image_url(
@@ -157,15 +166,14 @@ class ParafGencScraper:
             
             if not ai_data:
                 print("      ❌ AI parsing failed")
-                return False
+                return "error"
                 
             # Save
-            self._save_campaign(ai_data, url, image_url, source['default_card'])
-            return True
+            return self._save_campaign(ai_data, url, image_url, source['default_card'])
             
         except Exception as e:
             print(f"      ❌ Page Error: {e}")
-            return False
+            return "error"
 
     def _fix_image_url(self, image_path: str, base_url: str) -> str:
         """Convert relative image paths to absolute URLs"""
@@ -228,11 +236,12 @@ class ParafGencScraper:
                     self.db.add(cb)
                 except: pass
             self.db.commit()
-            print(f"      ✅ Saved: {data.get('title')}")
+            return "saved"
             
         except Exception as e:
             print(f"      ❌ Save error: {e}")
             self.db.rollback()
+            return "error"
 
     def _load_cache(self):
         bank = self.db.query(Bank).filter(Bank.slug == "halkbank").first()
@@ -253,9 +262,10 @@ class ParafGencScraper:
         if key in self.card_cache:
             return self.card_cache[key]
         
-        card = self.db.query(Card).filter(Card.bank_id == self.bank_cache.id, Card.name == name).first()
+        slug_val = name.lower().replace(" ", "-")
+        card = self.db.query(Card).filter(Card.bank_id == self.bank_cache.id, Card.slug == slug_val).first()
         if not card:
-            card = Card(bank_id=self.bank_cache.id, name=name, slug=name.lower().replace(" ", "-"), is_active=True)
+            card = Card(bank_id=self.bank_cache.id, name=name, slug=slug_val, is_active=True)
             self.db.add(card)
             self.db.flush()
         self.card_cache[key] = card

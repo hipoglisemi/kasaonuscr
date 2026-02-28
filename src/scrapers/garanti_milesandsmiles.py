@@ -34,7 +34,7 @@ class GarantiMilesAndSmilesScraper:
     def _get_or_create_bank(self):
         """Get or create Garanti BBVA bank"""
         with get_db_session() as db:
-            bank = db.query(Bank).filter(Bank.name == "Garanti BBVA").first()
+            bank = db.query(Bank).filter(Bank.slug == "garanti-bbva").first()
             if not bank:
                 bank = Bank(
                     name="Garanti BBVA",
@@ -53,7 +53,7 @@ class GarantiMilesAndSmilesScraper:
         with get_db_session() as db:
             card = db.query(Card).filter(
                 Card.bank_id == self.bank.id,
-                Card.name == "Garanti Miles&Smiles"
+                Card.slug == "garanti-milessmiles"
             ).first()
             
             if not card:
@@ -203,7 +203,7 @@ class GarantiMilesAndSmilesScraper:
                     pass
             
             # Save campaign
-            self._save_campaign(
+            result = self._save_campaign(
                 title=title,
                 details_text=ai_data.get('short_description'),
                 image_url=image_url,
@@ -213,11 +213,11 @@ class GarantiMilesAndSmilesScraper:
                 ai_data=ai_data
             )
             
-            return True
+            return result
             
         except Exception as e:
              print(f"   ❌ Error processing campaign: {e}")
-             return False
+             return "error"
 
     def _save_campaign(self, title: str, details_text: str, image_url: Optional[str],
                        tracking_url: str, start_date, end_date, ai_data: Dict[str, Any]):
@@ -227,7 +227,7 @@ class GarantiMilesAndSmilesScraper:
             existing = db.query(Campaign).filter(Campaign.tracking_url == tracking_url).first()
             if existing:
                 print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")
-                return
+                return "skipped"
 
             slug = get_unique_slug(title, db, Campaign)
             
@@ -300,6 +300,7 @@ class GarantiMilesAndSmilesScraper:
             
             db.commit()
             print(f"   ✅ Saved: {campaign.title[:50]}... (Reward: {campaign.reward_text})")
+            return "saved"
 
     def run(self):
         """Main execution flow"""
@@ -320,20 +321,25 @@ class GarantiMilesAndSmilesScraper:
             
             # Process campaigns
             success_count = 0
+            skipped_count = 0
+            failed_count = 0
             for i, url in enumerate(campaign_urls, 1):
                 print(f"\n[{i}/{len(campaign_urls)}] Processing: {url}")
                 
-                if self._process_campaign(url):
+                result = self._process_campaign(url)
+                if result == "saved":
                     success_count += 1
+                elif result == "skipped":
+                    skipped_count += 1
+                else:
+                    failed_count += 1
                 
                 # Rate limiting
                 time.sleep(0.8)
             
             print(f"\n{'=' * 60}")
             print(f"✅ Scraping complete!")
-            print(f"   Total: {len(campaign_urls)} campaigns")
-            print(f"   Success: {success_count}")
-            print(f"   Failed: {len(campaign_urls) - success_count}")
+            print(f"✅ Özet: {len(campaign_urls)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
             
             # Clear cache
             clear_cache()

@@ -296,7 +296,7 @@ class TurkiyeFinansScraper:
             
             if not title or title.lower() in GENERIC_TITLES:
                  print(f"      ⚠️ Valid title not found, skipping {url}")
-                 return
+                 return "skipped"
 
             # Image
             image_url = None
@@ -399,7 +399,7 @@ class TurkiyeFinansScraper:
 
                 if existing:
                     print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:40]}")
-                    campaign_id = existing[0]
+                    return "skipped"
                 else:
                     print(f"   ✨ Creating: {title[:40]}")
                     campaign_data["slug"] = slug
@@ -436,8 +436,10 @@ class TurkiyeFinansScraper:
                         if not link_check:
                             conn.execute(text("INSERT INTO campaign_brands (campaign_id, brand_id) VALUES (:cid, CAST(:bid AS uuid))"), {"cid": campaign_id, "bid": bid})
 
+            return "saved"
         except Exception as e:
             print(f"   ❌ Error processing {url}: {e}")
+            return "error"
 
     def run(self, limit: int = 1000, target: str = "all"):
         print("🚀 Starting Türkiye Finans Scraper (Full Selenium)...")
@@ -461,10 +463,26 @@ class TurkiyeFinansScraper:
                 links_to_process = links[:limit]
                 print(f"   🎯 Detailed processing for {len(links_to_process)} campaigns...")
                 
-                for idx, url in enumerate(links_to_process):
-                    print(f"[{idx+1}/{len(links_to_process)}] {url}")
-                    self._process_campaign(url, card_key, card_id)
-        
+                success_count = 0
+                skipped_count = 0
+                failed_count = 0
+                
+                for idx, url in enumerate(links_to_process, 1):
+                    print(f"[{idx}/{len(links_to_process)}] {url}")
+                    try:
+                        res = self._process_campaign(url, card_key, card_id)
+                        if res == "saved":
+                            success_count += 1
+                        elif res == "skipped":
+                            skipped_count += 1
+                        else:
+                            failed_count += 1
+                    except Exception as e:
+                        print(f"   ❌ Error: {e}")
+                        failed_count += 1
+                        
+                print(f"✅ Özet: {len(links_to_process)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
+
         finally:
             self.teardown_driver()
             print("\n🏁 Türkiye Finans Scraper Finished.")

@@ -29,7 +29,7 @@ class YapikrediPlayScraper:
         self.card = self._get_or_create_card()
         
     def _get_or_create_bank(self) -> Bank:
-        bank = self.db.query(Bank).filter(Bank.name == self.BANK_NAME).first()
+        bank = self.db.query(Bank).filter(Bank.slug == "yapi-kredi").first()
         if not bank:
             print(f"Creating bank: {self.BANK_NAME}")
             bank = Bank(
@@ -48,7 +48,7 @@ class YapikrediPlayScraper:
         return bank
 
     def _get_or_create_card(self) -> Card:
-        card = self.db.query(Card).filter(Card.name == self.CARD_NAME, Card.bank_id == self.bank.id).first()
+        card = self.db.query(Card).filter(Card.slug == "play", Card.bank_id == self.bank.id).first()
         if not card:
             print(f"Creating card: {self.CARD_NAME}")
             card = Card(
@@ -90,18 +90,17 @@ class YapikrediPlayScraper:
         title = item.get('Title') or item.get('PageTitle') or "Başlıksız Kampanya"
         url_suffix = item.get('Url')
         if not url_suffix:
-            return
+            return "skipped"
 
         if url_suffix.startswith('http'):
             full_url = url_suffix
         else:
             full_url = f"{self.BASE_URL}{url_suffix}"
         
-        # Check if exists
         existing = self.db.query(Campaign).filter(Campaign.tracking_url == full_url).first()
         if existing:
             print(f"   Skipping existing: {title}")
-            return
+            return "skipped"
 
         print(f"   Processing: {title}")
         
@@ -132,7 +131,7 @@ class YapikrediPlayScraper:
         # Use AI's short_title for display, keep original API title in details_text
         display_title = ai_result.get('short_title') or title
         
-        self._save_campaign(
+        return self._save_campaign(
             title=display_title,
             details_text=short_description,
             image_url=api_image_url,
@@ -239,9 +238,11 @@ class YapikrediPlayScraper:
                         self.db.commit()
                         print(f"      🔗 Linked Brand: {brand.name}")
             
+            return "saved"
         except Exception as e:
             self.db.rollback()
             print(f"   ❌ Error saving: {e}")
+            return "error"
 
     def _generate_slug(self, title: str) -> str:
         # Basic slugify
@@ -264,7 +265,10 @@ class YapikrediPlayScraper:
     def run(self):
         print(f"🚀 Starting {self.BANK_NAME} {self.CARD_NAME} Scraper...")
         page = 1
-        processed_count = 0
+        success_count = 0
+        skipped_count = 0
+        failed_count = 0
+        total_found = 0
         
         while True:
             items = self._fetch_list(page)
@@ -273,6 +277,7 @@ class YapikrediPlayScraper:
                 break
                 
             print(f"   Found {len(items)} items on page {page}")
+            total_found += len(items)
             
             active_count = 0
             for item in items:
@@ -289,8 +294,17 @@ class YapikrediPlayScraper:
                         pass
                 
                 active_count += 1
-                self._process_item(item)
-                processed_count += 1
+                try:
+                    res = self._process_item(item)
+                    if res == "saved":
+                        success_count += 1
+                    elif res == "skipped":
+                        skipped_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
+                    print(f"❌ Error processing item: {e}")
+                    failed_count += 1
             
             if active_count == 0 and len(items) > 0:
                 print("   All items on this page are expired. Stopping.")
@@ -299,7 +313,7 @@ class YapikrediPlayScraper:
             page += 1
             time.sleep(1)
 
-        print("✅ Scraper finished.")
+        print(f"\n✅ Özet: {total_found} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
         
         # Clear cache so new campaigns appear immediately
         print("🧹 Clearing API cache...")

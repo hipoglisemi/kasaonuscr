@@ -329,7 +329,7 @@ class DenizbankScraper:
         print(f"\n📄 Processing: {url}")
         html = self._fetch_html(url)
         if not html:
-            return
+            return "skipped"
 
         soup = BeautifulSoup(html, 'html.parser')
 
@@ -491,7 +491,7 @@ class DenizbankScraper:
             "reward_type": ai_data.get('reward_type')
         }
 
-        self._save_to_db(campaign_data, ai_data.get('brands', []))
+        return self._save_to_db(campaign_data, ai_data.get('brands', []))
 
     def _get_or_create_card(self):
         """Find or create Denizbank and DenizBonus card."""
@@ -544,7 +544,7 @@ class DenizbankScraper:
 
                 if existing:
                     print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {data['tracking_url']}")
-                    return existing[0]
+                    return "skipped"
 
                 print(f"   ✨ Creating: {data['title']}")
                 result = conn.execute(
@@ -616,10 +616,10 @@ class DenizbankScraper:
                             )
                             print(f"      🔗 Linked Brand: {brand_name}")
                             
+            return "saved"
         except Exception as e:
             print(f"   ❌ DB Error: {e}")
-        
-        return campaign_id
+            return "error"
 
     def run(self, limit=20):
         print("🚀 Starting Denizbank Hybrid Scraper...")
@@ -632,11 +632,28 @@ class DenizbankScraper:
             urls = self._fetch_campaign_list(limit=limit)
             print(f"   🎯 Processing {len(urls)} campaigns...")
             
-            for i, url in enumerate(urls):
-                self._process_campaign(url)
+            success_count = 0
+            skipped_count = 0
+            failed_count = 0
+            
+            for i, url in enumerate(urls, 1):
+                try:
+                    res = self._process_campaign(url)
+                    if res == "saved":
+                        success_count += 1
+                    elif res == "skipped":
+                        skipped_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
+                    print(f"   ❌ Failed: {e}")
+                    failed_count += 1
+                
                 # Sleep more if in free mode
                 if not ZENROWS_API_KEY:
                     time.sleep(random.uniform(4, 8))  # Daha uzun ve rastgele
+                    
+            print(f"✅ Özet: {len(urls)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
                     
         finally:
             self.close_driver()

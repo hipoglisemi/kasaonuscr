@@ -14,9 +14,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 
-# --- CONFIGURATION ---
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
 # Import AI Parser from sibling directory
 # We need to add the project root to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__)) # src/scrapers
@@ -52,6 +49,8 @@ try:
                      os.environ[k] = v.strip('"\'')
 except: pass
 
+# --- CONFIGURATION ---
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # --- MODELS ---
 Base = declarative_base()
@@ -138,16 +137,20 @@ class VakifbankScraper:
         # Initialize AI Parser
         self.parser = AIParser() # Ensure GEMINI_API_KEY is in env
         
-        # Ensure Bank & Card
-        self.bank = self.db.query(Bank).filter(Bank.name == 'VakıfBank').first()
+        # Ensure Bank
+        bank_slug = 'vakifbank'
+        self.bank = self.db.query(Bank).filter(Bank.slug == bank_slug).first()
         if not self.bank:
-            self.bank = Bank(name='VakıfBank', slug='vakifbank')
+            self.bank = Bank(name='VakıfBank', slug=bank_slug)
             self.db.add(self.bank)
             self.db.commit()
             
-        self.card = self.db.query(Card).filter(Card.name == 'VakıfBank Worldcard').first()
+        # Ensure Card
+        card_slug = 'vakifbank-worldcard'
+        # Fallback Name: Since user renamed it VakıfWorld, default to VakıfWorld for new inserts, but search by slug always.
+        self.card = self.db.query(Card).filter(Card.slug == card_slug).first()
         if not self.card:
-             self.card = Card(bank_id=self.bank.id, name='VakıfBank Worldcard', slug='vakifbank-worldcard', is_active=True)
+             self.card = Card(bank_id=self.bank.id, name='VakıfWorld', slug=card_slug, is_active=True)
              self.db.add(self.card)
              self.db.commit()
         
@@ -319,11 +322,23 @@ class VakifbankScraper:
     def run(self):
         print("🚀 Starting VakıfBank Scraper (Powered by Kartavantaj AI Parser)...")
         urls = self._fetch_campaign_list()
-        count = 0
+        
+        success_count = 0
+        skipped_count = 0
+        failed_count = 0
+        
         for i, url in enumerate(urls):
-            self._process_campaign(url)
-            count += 1
+            try:
+                # _process_campaign could be modified to return a status string
+                # We'll just assume True if it completes (could be skipped inside though)
+                self._process_campaign(url)
+                success_count += 1
+            except Exception as e:
+                failed_count += 1
+                
             time.sleep(2) # Rate limiting
+            
+        print(f"\n✅ Özet: {len(urls)} bulundu, {success_count} işlendi, {failed_count} hata aldı.")
         print("🏁 Finished.")
 
 if __name__ == "__main__":

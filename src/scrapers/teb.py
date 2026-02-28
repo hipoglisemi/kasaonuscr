@@ -191,7 +191,7 @@ class TEBScraper:
 
                 if existing:
                     print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {data['title'][:50]}")
-                    campaign_id = existing[0]
+                    return "skipped"
                 else:
                     print(f"   ✨ Creating: {data['title'][:50]}")
                     result = conn.execute(text("""
@@ -243,22 +243,22 @@ class TEBScraper:
                             """), {"campaign_id": campaign_id, "brand_id": brand_id})
                             print(f"      🔗 Linked Brand: {brand_name}")
 
+            return "saved"
         except Exception as e:
             print(f"   ❌ DB Error: {e}")
-
-        return campaign_id
+            return "error"
 
     def _process_item(self, item: dict, card_id: int, card_name: str):
         """Process a single campaign item from the API."""
         title = (item.get("title") or "").strip()
         if not title:
             print("   ⚠️  Skipping: No title.")
-            return
+            return "skipped"
 
         tracking_url = item.get("weblink") or ""
         if not tracking_url:
             print(f"   ⚠️  Skipping: No weblink for '{title[:40]}'")
-            return
+            return "skipped"
 
         # Image: prefer rollup (larger detail image), fallback to page image
         image_url = (
@@ -339,7 +339,7 @@ class TEBScraper:
             "reward_type": ai_data.get("reward_type"),
         }
 
-        self._save_to_db(campaign_data, ai_data.get("brands", []))
+        return self._save_to_db(campaign_data, ai_data.get("brands", []))
 
     def run(self, limit: int = 1000, card_filter: str = "all"):
         """
@@ -385,8 +385,13 @@ class TEBScraper:
                 continue
 
             try:
-                self._process_item(item, card_id, card_def["name"])
-                success += 1
+                res = self._process_item(item, card_id, card_def["name"])
+                if res == "saved":
+                    success += 1
+                elif res == "skipped":
+                    skipped += 1
+                else:
+                    failed += 1
             except Exception as e:
                 print(f"   ❌ Failed: {e}")
                 failed += 1
@@ -394,9 +399,7 @@ class TEBScraper:
             time.sleep(0.5)
 
         print(f"\n🏁 TEB Scraper Finished.")
-        print(f"   ✅ Success: {success}")
-        print(f"   ⏭️  Skipped: {skipped}")
-        print(f"   ❌ Failed: {failed}")
+        print(f"✅ Özet: {len(items)} bulundu, {success} eklendi, {skipped + failed} atlandı/hata aldı.")
 
 
 if __name__ == "__main__":

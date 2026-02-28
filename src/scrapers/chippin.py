@@ -174,6 +174,10 @@ class ChippinScraper:
             
             campaigns_to_process = campaigns[:limit]
             
+            success_count = 0
+            skipped_count = 0
+            failed_count = 0
+            
             for idx, c in enumerate(campaigns_to_process):
                 title = c.get("webName")
                 if not title: continue
@@ -235,66 +239,74 @@ class ChippinScraper:
                     reward_val = 0.0
 
                 # Database Ops
-                with self.engine.begin() as conn:
-                    existing = conn.execute(text("SELECT id FROM campaigns WHERE tracking_url = :url"), {"url": tracking_url}).fetchone()
-                    
-                    campaign_data = {
-                        "title": ai_data.get("title") or title,
-                        "description": ai_data.get("description") or "",
-                        "slug": slug,
-                        "image_url": image_url,
-                        "tracking_url": tracking_url,
-                        "start_date": ai_data.get("start_date") or c.get("campaignStartDate"),
-                        "end_date": ai_data.get("end_date") or c.get("campaignEndDate"),
-                        "sector_id": self._resolve_sector_by_name(ai_data.get("sector")) or self._resolve_sector_by_name("Diğer"),
-                        "card_id": card_id,
-                        "conditions": "\n".join(conditions_lines) if conditions_lines else None,
-                        "eligible_cards": eligible_str,
-                        "reward_text": ai_data.get("reward_text"),
-                        "reward_value": reward_val,
-                        "reward_type": ai_data.get("reward_type")
-                    }
+                try:
+                    with self.engine.begin() as conn:
+                        existing = conn.execute(text("SELECT id FROM campaigns WHERE tracking_url = :url"), {"url": tracking_url}).fetchone()
+                        
+                        campaign_data = {
+                            "title": ai_data.get("title") or title,
+                            "description": ai_data.get("description") or "",
+                            "slug": slug,
+                            "image_url": image_url,
+                            "tracking_url": tracking_url,
+                            "start_date": ai_data.get("start_date") or c.get("campaignStartDate"),
+                            "end_date": ai_data.get("end_date") or c.get("campaignEndDate"),
+                            "sector_id": self._resolve_sector_by_name(ai_data.get("sector")) or self._resolve_sector_by_name("Diğer"),
+                            "card_id": card_id,
+                            "conditions": "\n".join(conditions_lines) if conditions_lines else None,
+                            "eligible_cards": eligible_str,
+                            "reward_text": ai_data.get("reward_text"),
+                            "reward_value": reward_val,
+                            "reward_type": ai_data.get("reward_type")
+                        }
 
-                    if existing:
-                        print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {campaign_data['tracking_url']}")
-                        campaign_id = existing[0]
-                    else:
-                        print(f"      ✨ Creating...")
-                        result = conn.execute(text("""
-                            INSERT INTO campaigns (
-                                title, description, slug, image_url, tracking_url, is_active,
-                                sector_id, card_id, start_date, end_date, conditions,
-                                eligible_cards, reward_text, reward_value, reward_type,
-                                created_at, updated_at
-                            )
-                            VALUES (
-                                :title, :description, :slug, :image_url, :tracking_url, true,
-                                :sector_id, :card_id, :start_date, :end_date, :conditions,
-                                :eligible_cards, :reward_text, :reward_value, :reward_type,
-                                NOW(), NOW()
-                            )
-                            RETURNING id
-                        """), campaign_data)
-                        campaign_id = result.fetchone()[0]
+                        if existing:
+                            print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {campaign_data['tracking_url']}")
+                            skipped_count += 1
+                            continue
+                        else:
+                            print(f"      ✨ Creating...")
+                            result = conn.execute(text("""
+                                INSERT INTO campaigns (
+                                    title, description, slug, image_url, tracking_url, is_active,
+                                    sector_id, card_id, start_date, end_date, conditions,
+                                    eligible_cards, reward_text, reward_value, reward_type,
+                                    created_at, updated_at
+                                )
+                                VALUES (
+                                    :title, :description, :slug, :image_url, :tracking_url, true,
+                                    :sector_id, :card_id, :start_date, :end_date, :conditions,
+                                    :eligible_cards, :reward_text, :reward_value, :reward_type,
+                                    NOW(), NOW()
+                                )
+                                RETURNING id
+                            """), campaign_data)
+                            campaign_id = result.fetchone()[0]
+                            success_count += 1
 
-                    # Brands
-                    if ai_data.get("brands") and campaign_id:
-                        clean_brands = cleanup_brands(ai_data["brands"])
-                        for brand_name in clean_brands:
-                            brand_res = conn.execute(text("SELECT id FROM brands WHERE name=:name"), {"name": brand_name}).fetchone()
-                            if brand_res:
-                                bid = brand_res[0]
-                            else:
-                                bslug = f"{slugify(brand_name)}-{int(time.time())}"
-                                brand_res = conn.execute(text("INSERT INTO brands (name, slug, is_active, created_at) VALUES (:name, :slug, true, NOW()) RETURNING id"), {"name": brand_name, "slug": bslug}).fetchone()
-                                bid = brand_res[0]
-                            
-                            link_check = conn.execute(text("SELECT 1 FROM campaign_brands WHERE campaign_id=:cid AND brand_id=CAST(:bid AS uuid)"), {"cid": campaign_id, "bid": bid}).fetchone()
-                            if not link_check:
-                                conn.execute(text("INSERT INTO campaign_brands (campaign_id, brand_id) VALUES (:cid, CAST(:bid AS uuid))"), {"cid": campaign_id, "bid": bid})
+                        # Brands
+                        if ai_data.get("brands") and campaign_id:
+                            clean_brands = cleanup_brands(ai_data["brands"])
+                            for brand_name in clean_brands:
+                                brand_res = conn.execute(text("SELECT id FROM brands WHERE name=:name"), {"name": brand_name}).fetchone()
+                                if brand_res:
+                                    bid = brand_res[0]
+                                else:
+                                    bslug = f"{slugify(brand_name)}-{int(time.time())}"
+                                    brand_res = conn.execute(text("INSERT INTO brands (name, slug, is_active, created_at) VALUES (:name, :slug, true, NOW()) RETURNING id"), {"name": brand_name, "slug": bslug}).fetchone()
+                                    bid = brand_res[0]
+                                
+                                link_check = conn.execute(text("SELECT 1 FROM campaign_brands WHERE campaign_id=:cid AND brand_id=CAST(:bid AS uuid)"), {"cid": campaign_id, "bid": bid}).fetchone()
+                                if not link_check:
+                                    conn.execute(text("INSERT INTO campaign_brands (campaign_id, brand_id) VALUES (:cid, CAST(:bid AS uuid))"), {"cid": campaign_id, "bid": bid})
+                except Exception as e:
+                    print(f"   ❌ DB Error: {e}")
+                    failed_count += 1
 
         except Exception as e:
             print(f"   ❌ Error: {e}")
+            
+        print(f"✅ Özet: {len(campaigns_to_process)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
 
 if __name__ == "__main__":
     import argparse
