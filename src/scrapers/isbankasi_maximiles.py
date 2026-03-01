@@ -333,7 +333,20 @@ class IsbankMaximilesScraper:
 
     def _extract_campaign_data(self, url: str) -> Optional[Dict[str, Any]]:
         try:
-            self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            success = False
+            for attempt in range(3):
+                try:
+                    self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                    success = True
+                    break
+                except Exception as e:
+                    print(f"      ⚠️ Detail load attempt {attempt+1}/3 failed: {e}. Retrying...")
+                    time.sleep(3 + attempt * 2)
+            
+            if not success:
+                print(f"      ❌ Could not load detail page after 3 attempts: {url}")
+                return None
+                
             self.page.evaluate("window.scrollTo(0, 500)")
             time.sleep(1.5)
 
