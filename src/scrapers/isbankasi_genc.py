@@ -224,7 +224,7 @@ class IsbankMaximumGencScraper:
         except Exception:
             pass
 
-    def _fetch_campaign_urls(self, limit: Optional[int] = None) -> List[str]:
+    def _fetch_campaign_urls(self, limit: Optional[int] = None) -> tuple[List[str], List[str]]:
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL}...")
         self.page.goto(self.CAMPAIGNS_URL, wait_until="domcontentloaded", timeout=120000)
         time.sleep(5)
@@ -290,6 +290,7 @@ class IsbankMaximumGencScraper:
         ]
 
         all_links = []
+        expired_links = []
         
         # Helper map for url links to eliminate duplicates while parsing
         for a in soup.find_all("a", href=True):
@@ -306,13 +307,25 @@ class IsbankMaximumGencScraper:
                 
                 if not is_exact_category and not is_category_suffix and not is_common_page and len(href) > 25:
                     full_url = urljoin(self.BASE_URL, a["href"])
-                    all_links.append(full_url)
+                    
+                    # Sona ermiş kampanya tespiti
+                    parent_text = ""
+                    parent = a.find_parent("div", class_="card") or a.find_parent("div", class_="campaign-card") or a.find_parent("div", class_="opportunity-result") or a.parent
+                    if parent:
+                        parent_text = parent.get_text(separator=" ", strip=True).lower()
+                        
+                    if "sona ermiştir" in parent_text or "bitmiştir" in parent_text or "sona erdi" in parent_text or "süresi doldu" in parent_text:
+                        expired_links.append(full_url)
+                    else:
+                        all_links.append(full_url)
 
         unique_urls = list(dict.fromkeys(all_links))
+        unique_expired = list(dict.fromkeys(expired_links))
         if limit:
             unique_urls = unique_urls[:limit]
-        print(f"✅ Found {len(unique_urls)} unique campaigns")
-        return unique_urls
+            
+        print(f"✅ Found {len(unique_urls)} active campaigns, and {len(unique_expired)} expired campaigns")
+        return unique_urls, unique_expired
 
     def _extract_campaign_data(self, url: str) -> Optional[Dict[str, Any]]:
         try:
@@ -533,7 +546,28 @@ class IsbankMaximumGencScraper:
                 self.db.commit()
                 self.db.close()
                 
-            urls = self._fetch_campaign_urls(limit=limit)
+            active_urls, expired_urls = self._fetch_campaign_urls(limit=limit)
+            
+            # Evaluate expired campaigns logic
+            if expired_urls:
+                print(f"🛑 Found {len(expired_urls)} expired campaigns on list page. Checking DB for early end...")
+                for e_url in expired_urls:
+                    try:
+                        existing = self.db.query(Campaign).filter(
+                            Campaign.tracking_url == e_url,
+                            Campaign.card_id == self.card_id,
+                            Campaign.is_active == True
+                        ).first()
+                        if existing:
+                            print(f"   🛑 Desactivating expired campaign in DB: {existing.title}")
+                            existing.is_active = False
+                            self.db.commit()
+                    except Exception as e:
+                        if self.db:
+                            self.db.rollback()
+                        print(f"   ⚠️ Could not update expired campaign {e_url}: {e}")
+                        
+            urls = active_urls
             success, skipped, failed = 0, 0, 0
             for i, url in enumerate(urls, 1):
                 print(f"\n[{i}/{len(urls)}]")
