@@ -43,7 +43,7 @@ on:
 jobs:
   # Step 1: Compute which scrapers to run
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       scrapers: ${{ steps.set-matrix.outputs.scrapers }}
     steps:
@@ -60,7 +60,7 @@ jobs:
   # Step 2: Run selected scrapers in parallel
   scrape:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
