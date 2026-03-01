@@ -387,11 +387,11 @@ class IsbankMaximilesScraper:
                         break
 
             # Content
-            content_div = soup.select_one("section div.container")
+            content_div = soup.select_one(".page-content .container, section div.container, .detail-text, .campaign-content")
             full_text = ""
             conditions = []
             if content_div:
-                raw = content_div.get_text("\n")
+                raw = content_div.get_text("\n", strip=True)
                 conditions = [self._clean(l) for l in raw.split("\n") if len(self._clean(l)) > 20]
                 full_text = " ".join(conditions)
             else:
