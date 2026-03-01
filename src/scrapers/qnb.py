@@ -31,8 +31,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 BASE_URL = "https://www.qnbcard.com.tr"
 API_URL = "https://www.qnbcard.com.tr/api/Campaigns"
 
-BANK_NAME = "QNB Finansbank"
-BANK_SLUG = "qnb-finansbank"
+BANK_NAME = "QNB"
+BANK_SLUG = "qnb"
 BANK_LOGO = "https://www.qnbcard.com.tr/Content/images/logo.png"
 
 # Default card for QNB campaigns (most campaigns are for all QNB cards)
@@ -106,13 +106,13 @@ class QNBScraper:
             return []
 
     def _get_or_create_bank_and_card(self):
-        """Find or create QNB Finansbank and QNBCard."""
+        """Find or create QNB and QNBCard."""
         try:
             with self.engine.connect() as conn:
-                # 1. Find or Create Bank
+                # 1. Find Bank (by slug or alias)
                 result = conn.execute(
-                    text("SELECT id FROM banks WHERE slug = :slug"),
-                    {"slug": BANK_SLUG}
+                    text("SELECT id FROM banks WHERE slug = :slug OR :name = ANY(aliases) OR name = :name"),
+                    {"slug": BANK_SLUG, "name": "QNB Finansbank"}
                 ).fetchone()
 
                 if result:
@@ -120,12 +120,18 @@ class QNBScraper:
                 else:
                     print(f"   🏦 Creating Bank: {BANK_NAME}")
                     result = conn.execute(text("""
-                        INSERT INTO banks (name, slug, logo_url, is_active, created_at)
-                        VALUES (:name, :slug, :logo, true, NOW())
+                        INSERT INTO banks (name, slug, logo_url, is_active, created_at, aliases)
+                        VALUES (:name, :slug, :logo, true, NOW(), :aliases)
                         RETURNING id
-                    """), {"name": BANK_NAME, "slug": BANK_SLUG, "logo": BANK_LOGO}).fetchone()
+                    """), {
+                        "name": BANK_NAME, 
+                        "slug": BANK_SLUG, 
+                        "logo": BANK_LOGO,
+                        "aliases": ["QNB Finansbank", "Finansbank"]
+                    }).fetchone()
                     self.bank_id = result[0]
                     conn.commit()
+
 
                 # 2. Find or Create Card
                 result = conn.execute(

@@ -124,9 +124,14 @@ class ZiraatScraper:
         self.parser = AIParser()
         
         # Ensure Bank & Card
-        self.bank = self.db.query(Bank).filter(Bank.slug == 'ziraat').first()
+        self.bank = self.db.query(Bank).filter(
+            (Bank.slug == 'ziraat-bankasi') | 
+            (Bank.slug == 'ziraat') | 
+            (Bank.name.ilike('%Ziraat%'))
+        ).first()
+
         if not self.bank:
-            self.bank = Bank(name='Ziraat Bankası', slug='ziraat')
+            self.bank = Bank(name='Ziraat Bankası', slug='ziraat-bankasi')
             self.db.add(self.bank)
             self.db.commit()
             
