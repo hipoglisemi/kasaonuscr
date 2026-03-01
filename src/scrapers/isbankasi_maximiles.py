@@ -371,8 +371,23 @@ class IsbankMaximilesScraper:
                 print(f"      ❌ Could not load detail page after 3 attempts: {url}")
                 return None
                 
-            self.page.evaluate("window.scrollTo(0, 500)")
-            time.sleep(1.5)
+            # Scroll to bottom to trigger lazy loading of content
+            self.page.evaluate("""async () => {
+                await new Promise((resolve) => {
+                    let totalHeight = 0;
+                    let distance = 300;
+                    let timer = setInterval(() => {
+                        let scrollHeight = document.body.scrollHeight;
+                        window.scrollBy(0, distance);
+                        totalHeight += distance;
+                        if(totalHeight >= scrollHeight){
+                            clearInterval(timer);
+                            resolve();
+                        }
+                    }, 100);
+                });
+            }""")
+            time.sleep(2)
 
             soup = BeautifulSoup(self.page.content(), "html.parser")
             title_el = soup.select_one("h1")
@@ -410,23 +425,42 @@ class IsbankMaximilesScraper:
                         date_text = self._clean(el.text)
                         break
 
-            # Content
-            content_div = soup.select_one(".page-content .container, section div.container, .detail-text, .campaign-content")
-            full_text = ""
-            conditions = []
-            if content_div:
-                raw = content_div.get_text("\n", strip=True)
-                conditions = [self._clean(l) for l in raw.split("\n") if len(self._clean(l)) > 20]
-                full_text = " ".join(conditions)
-            else:
-                full_text = self._clean(soup.get_text())[:1000]
+            # Content Extraction Logic
+            content_parts = []
+            
+            # Find all containers that might have content
+            containers = soup.select(".page-content, section div.container, .detail-text, .campaign-content, .text-area")
+            
+            for container in containers:
+                text = container.get_text(separator="\n", strip=True)
+                # Filter out breadcrumbs and short fragments
+                if len(text) > 400 and "Ana Sayfa" not in text[:100]:
+                    # Check if this part is already added to avoid duplicates
+                    if not any(text[:100] in p for p in content_parts):
+                        content_parts.append(text)
 
-            conditions = [c for c in conditions if not c.startswith("Copyright")]
+            # Fallback to all sections if nothing significant found
+            if not content_parts:
+                sections = soup.select("section")
+                for s in sections:
+                    t = s.get_text(separator="\n", strip=True)
+                    if len(t) > 300 and "Üzgünüz" not in t:
+                        content_parts.append(t)
+
+            # Join all parts
+            full_text = "\n\n".join(content_parts)
+            
+            # Clean up conditions by splitting into lines
+            conditions = [self._clean(line) for line in full_text.split("\n") 
+                         if len(self._clean(line)) > 25 and not line.startswith("Copyright")]
 
             return {
-                "title": title, "image_url": image_url,
-                "date_text": date_text, "full_text": full_text,
-                "conditions": conditions, "source_url": url,
+                "title": title, 
+                "image_url": image_url,
+                "date_text": date_text, 
+                "full_text": full_text,
+                "conditions": conditions, 
+                "source_url": url,
             }
         except Exception as e:
             print(f"   ⚠️ Error extracting {url}: {e}")
