@@ -337,7 +337,7 @@ class IsbankMaximumGencScraper:
             time.sleep(2)
 
             soup = BeautifulSoup(self.page.content(), "html.parser")
-            title_el = soup.select_one("h1")
+            title_el = soup.select_one("h1.color-purple, h1")
             title = self._clean(title_el.text) if title_el else "Başlık Yok"
 
             if "gecmis" in url or "geçmiş" in title.lower():
@@ -361,9 +361,14 @@ class IsbankMaximumGencScraper:
 
             # Date
             date_text = ""
-            date_el = soup.select_one(".date, .campaign-date")
+            date_el = soup.select_one("div.mobile-date, .date, .campaign-date")
             if date_el:
-                date_text = self._clean(date_el.text)
+                spans = date_el.find_all("span")
+                if len(spans) >= 2:
+                    date_text = f"{self._clean(spans[0].text)} - {self._clean(spans[1].text)}"
+                else:
+                    date_text = self._clean(date_el.text)
+            
             if not date_text:
                 full_text = soup.get_text()
                 m = re.search(r"(\d{1,2}\s+\w+\s+\d{4})\s*-\s*(\d{1,2}\s+\w+\s+\d{4})", full_text)
@@ -371,11 +376,11 @@ class IsbankMaximumGencScraper:
                     date_text = m.group(0)
 
             # Content
-            content_div = soup.select_one(".detail-text, .campaign-content, section .container")
+            content_div = soup.select_one("div.content-part, .detail-text, .campaign-content, section .container")
             conditions = []
             full_text = ""
             if content_div:
-                raw = content_div.get_text("\n")
+                raw = content_div.get_text("\n", strip=True)
                 conditions = [self._clean(l) for l in raw.split("\n") if len(self._clean(l)) > 20]
                 full_text = " ".join(conditions)
             else:
