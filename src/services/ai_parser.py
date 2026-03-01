@@ -67,11 +67,14 @@ BANK_RULES = {
 - ELIGIBLE CARDS:
     - Keywords: "Maximum Kart", "Maximum Gold", "Maximum Platinum", "Maximiles", "Privia", "İş Bankası Bankamatik Kartı".
     - "Ticari" means "Maximum Ticari".
-- PARTICIPATION:
+- PARTICIPATION (katilim_sekli):
+    - 🚨 PRIORITY ORDER:
+      1. Primary App: Look for "Katıl" button in "Maximum Mobil" or "İşCep". → Extract as "Maximum Mobil veya İşCep uygulamasından katılabilirsiniz."
+      2. SMS: Look for "4402'ye SMS" → Extract as "4402'ye [KEYWORD] yazıp SMS gönderin."
+      3. Automatic: If "katılım gerektirmez" or "otomatik" → Use "Otomatik Katılım".
+      4. Fallback: If no button/SMS/app is mentioned but there is a clear instruction like "Kampanya detaylarını inceleyin", write exactly that instruction.
     - 🚨 STRICT APP NAMES: ONLY use "Maximum Mobil", "İşCep", or "Pazarama".
     - ⛔ NEGATIVE CONSTRAINT: NEVER use "World Mobil", "Jüzdan", "BonusFlaş", "Yapı Kredi". If you see these, it's a hallucination or cross-promotion; ignore them.
-    - Primary: Look for "Katıl" button in "Maximum Mobil" or "İşCep".
-    - SMS: Usually 4402.
 """,
     'vakıfbank': """
 🚨 VAKIFBANK/WORLD SPECIFIC RULES:
@@ -444,7 +447,7 @@ VALID SECTORS (BİRİNİ SEÇ — SADECE bu listeden):
     - Metin içinde "SMS", "Mobil", "Jüzdan", "Katıl" gibi ifadeleri ara.
     - 🚨 DOĞRULAMA: İş Bankası için ASLA "World Mobil" yazma. Metinde "World Mobil" geçse bile (ki bu bir hatadır), bunu "Maximum Mobil" olarak düzelt. Banka kurallarına (yukarıdaki) uy.
     - Varsa tam talimatı yaz: "KAZAN yazıp 4455'e SMS gönderin" veya "Maximum Mobil üzerinden Katıl butonuna tıklayın".
-    - Yoksa boş bırakma, "Otomatik Katılım" veya "Maximum Mobil ile" gibi tahmin yürütme SADECE net ifade yoksa.
+    - Yoksa boş bırakma, "Otomatik Katılım" veya metinde "Kampanya detaylarını inceleyin" diyorsa aynen bunu yaz. Tahmin yürütme.
 
 9. **HARCAMA-KAZANÇ KURALLARI (MATHEMATIC LOGIC)**:
    - **discount**: SADECE "{{"N"}} Taksit" veya "+{{"N"}} Taksit"
