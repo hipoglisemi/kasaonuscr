@@ -159,15 +159,20 @@ class IsbankMaximilesScraper:
             self.db.commit()
         print(f"✅ Bank: {bank.name} (ID: {bank.id}, slug: {bank.slug})")
 
-        card = self.db.query(Card).filter(Card.slug == self.CARD_SLUG).first()
+        card = self.db.query(Card).filter(
+            Card.slug.in_([
+                'maximiles', 'maximiles-card', 'isbank-maximiles',
+                'isbankasi-maximiles', 'maximilescard',
+            ])
+        ).first()
         if not card:
             card = self.db.query(Card).filter(
                 Card.name.ilike('%Maximiles%'),
                 Card.bank_id == bank.id
             ).first()
         if not card:
-            print(f"⚠️  Card '{self.CARD_SLUG}' not found, creating...")
-            card = Card(bank_id=bank.id, name='Maximiles Card', slug=self.CARD_SLUG, is_active=True)
+            print(f"⚠️  Card 'maximiles' not found, creating...")
+            card = Card(bank_id=bank.id, name='Maximiles Card', slug='maximiles', is_active=True)
             self.db.add(card)
             self.db.commit()
         self.card_id = card.id

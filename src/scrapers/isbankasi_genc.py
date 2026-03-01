@@ -160,15 +160,20 @@ class IsbankMaximumGencScraper:
             self.db.commit()
         print(f"✅ Bank: {bank.name} (ID: {bank.id}, slug: {bank.slug})")
 
-        card = self.db.query(Card).filter(Card.slug == self.CARD_SLUG).first()
+        card = self.db.query(Card).filter(
+            Card.slug.in_([
+                'maximum-genc', 'maximum-genc-card', 'isbank-maximum-genc',
+                'isbankasi-maximum-genc', 'maximumgenc',
+            ])
+        ).first()
         if not card:
             card = self.db.query(Card).filter(
                 Card.name.ilike('%Maximum Gen%'),
                 Card.bank_id == bank.id
             ).first()
         if not card:
-            print(f"⚠️  Card '{self.CARD_SLUG}' not found, creating...")
-            card = Card(bank_id=bank.id, name='Maximum Genç Card', slug=self.CARD_SLUG, is_active=True)
+            print(f"⚠️  Card 'maximum-genc' not found, creating...")
+            card = Card(bank_id=bank.id, name='Maximum Genç Card', slug='maximum-genc', is_active=True)
             self.db.add(card)
             self.db.commit()
         self.card_id = card.id
