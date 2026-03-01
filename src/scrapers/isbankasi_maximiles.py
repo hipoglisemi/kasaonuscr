@@ -224,7 +224,7 @@ class IsbankMaximilesScraper:
             pass
 
     def _fetch_campaign_urls(self, limit: Optional[int] = None) -> tuple[List[str], List[str]]:
-        print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL}...")
+        print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL} ...")
         self.page.goto(self.CAMPAIGNS_URL, wait_until="domcontentloaded", timeout=120000)
         time.sleep(5)
 
