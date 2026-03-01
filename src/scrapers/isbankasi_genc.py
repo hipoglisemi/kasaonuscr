@@ -257,10 +257,15 @@ class IsbankMaximumGencScraper:
         while scroll_count < 100:
             if limit:
                 soup = BeautifulSoup(self.page.content(), "html.parser")
-                count = len([
-                    a for a in soup.find_all("a", href=True)
-                    if "kampanya" in a["href"].lower() and "gecmis" not in a["href"].lower()
-                ])
+                items = soup.find_all("div", class_="item")
+                count = 0
+                for item in items:
+                    a_tag = item.find("a", href=True)
+                    if a_tag:
+                        href = a_tag["href"].lower()
+                        if "tum-kampanya" not in href and "/kampanyalar/" not in href and href.startswith("/"):
+                            count += 1
+                            
                 if count >= limit:
                     break
 
@@ -283,65 +288,26 @@ class IsbankMaximumGencScraper:
 
         soup = BeautifulSoup(self.page.content(), "html.parser")
         
-        excluded_suffixes = [
-            "-kampanyalari",
-            "-kampanyalar",
-            "premium-kampanyalar",
-            "tum-kampanyalar"
-        ]
-        
-        excluded_paths = [
-            "/kampanyalar/seyahat",
-            "/kampanyalar/turizm",
-            "/kampanyalar/akaryakit",
-            "/kampanyalar/giyim-aksesuar",
-            "/kampanyalar/market",
-            "/kampanyalar/elektronik",
-            "/kampanyalar/beyaz-esya",
-            "/kampanyalar/mobilya-dekorasyon",
-            "/kampanyalar/egitim-kirtasiye",
-            "/kampanyalar/online-alisveris",
-            "/kampanyalar/otomotiv",
-            "/kampanyalar/vergi-odemeleri",
-            "/kampanyalar/maximum-mobil",
-            "/kampanyalar/diger",
-            "/kampanyalar/yeme-icme",
-            "/kampanyalar/maximum-pati-kart",
-            "/kampanyalar/arac-kiralama",
-            "/kampanyalar/bankamatik",
-            "bireysel", "ticari", "diger-kampanyalar",
-            "movenpick", "arsivi", "ozel-bankacilik"
-        ]
-
         all_links = []
         expired_links = []
         
-        # Helper map for url links to eliminate duplicates while parsing
-        for a in soup.find_all("a", href=True):
-            href = a["href"].lower()
-            if (
-                "kampanya" in href
-                and "arsiv" not in href
-                and "gecmis" not in href
-                and "past" not in href
-            ):
-                is_exact_category = any(href.endswith(path) for path in excluded_paths)
-                is_category_suffix = any(href.endswith(suffix) for suffix in excluded_suffixes)
-                is_common_page = "ozellikler" in href or "basvuru" in href or href.endswith("/kampanyalar")
+        items = soup.find_all("div", class_="item")
+        for item in items:
+            a_tag = item.find("a", href=True)
+            if not a_tag:
+                continue
                 
-                if not is_exact_category and not is_category_suffix and not is_common_page and len(href) > 15:
-                    full_url = urljoin(self.BASE_URL, a["href"])
-                    
-                    # Sona ermiş kampanya tespiti
-                    parent_text = ""
-                    parent = a.find_parent("div", class_="card") or a.find_parent("div", class_="campaign-card") or a.find_parent("div", class_="opportunity-result") or a.parent
-                    if parent:
-                        parent_text = parent.get_text(separator=" ", strip=True).lower()
-                        
-                    if "sona ermiştir" in parent_text or "bitmiştir" in parent_text or "sona erdi" in parent_text or "süresi doldu" in parent_text:
-                        expired_links.append(full_url)
-                    else:
-                        all_links.append(full_url)
+            href = a_tag["href"].lower()
+            if "tum-kampanya" not in href and "/kampanyalar/" not in href and href.startswith("/"):
+                full_url = urljoin(self.BASE_URL, a_tag["href"])
+                
+                # Sona ermiş kampanya tespiti
+                parent_text = item.get_text(separator=" ", strip=True).lower()
+                
+                if "sona ermiştir" in parent_text or "bitmiştir" in parent_text or "sona erdi" in parent_text or "süresi doldu" in parent_text:
+                    expired_links.append(full_url)
+                else:
+                    all_links.append(full_url)
 
         unique_urls = list(dict.fromkeys(all_links))
         unique_expired = list(dict.fromkeys(expired_links))
