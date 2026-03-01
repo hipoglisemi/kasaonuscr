@@ -131,7 +131,7 @@ class IsbankMaximumGencScraper:
     def __init__(self):
         if not DATABASE_URL:
             raise ValueError("DATABASE_URL is not set")
-        self.engine = create_engine(DATABASE_URL)
+        self.engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
         Session = sessionmaker(bind=self.engine)
         self.db = Session()
         

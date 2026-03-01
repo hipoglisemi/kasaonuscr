@@ -146,7 +146,7 @@ class IsbankMaximumScraper:
     def __init__(self):
         if not DATABASE_URL:
             raise ValueError("DATABASE_URL is not set")
-        self.engine = create_engine(DATABASE_URL)
+        self.engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
         Session = sessionmaker(bind=self.engine)
         self.db = Session()
         # Lazy import of AIParser to avoid google.generativeai hanging at module import time
@@ -213,32 +213,56 @@ class IsbankMaximumScraper:
     def _start_browser(self):
         from playwright.sync_api import sync_playwright
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox", "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage", "--disable-gpu",
-                "--window-size=1920,1080",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-extensions",
-                "--disable-web-security",
-            ]
-        )
-        context = self.browser.new_context(
-            viewport={"width": 1920, "height": 1080},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            locale="tr-TR",
-            timezone_id="Europe/Istanbul",
-            extra_http_headers={
-                "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            }
-        )
-        # Disable navigator.webdriver flag
-        context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        self.page = context.new_page()
-        self.page.set_default_timeout(120000)
-        print("✅ Playwright browser started.")
+        
+        is_ci = os.getenv("GITHUB_ACTIONS") == "true" or os.getenv("CI") == "true"
+        connected = False
+
+        if not is_ci:
+            try:
+                print("   🔌 Attempting to connect to local Chrome debug instance at http://localhost:9222...")
+                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
+                connected = True
+                print("   ✅ Connected to local existing Chrome instance")
+                
+                # Use existing context if available
+                if len(self.browser.contexts) > 0:
+                    context = self.browser.contexts[0]
+                else:
+                    context = self.browser.new_context()
+                    
+                self.page = context.new_page()
+                self.page.set_default_timeout(120000)
+                return
+            except Exception as e:
+                print(f"   ⚠️  Could not connect to debug Chrome, launching headless... ({e})")
+                
+        if not connected:
+            self.browser = self.playwright.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox", "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage", "--disable-gpu",
+                    "--window-size=1920,1080",
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-extensions",
+                    "--disable-web-security",
+                ]
+            )
+            context = self.browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                locale="tr-TR",
+                timezone_id="Europe/Istanbul",
+                extra_http_headers={
+                    "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                }
+            )
+            # Disable navigator.webdriver flag
+            context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            self.page = context.new_page()
+            self.page.set_default_timeout(120000)
+            print("✅ Playwright browser started.")
 
     def _stop_browser(self):
         try:
