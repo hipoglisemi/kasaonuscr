@@ -146,7 +146,7 @@ class VakifbankScraper:
             self.db.commit()
             
         # Ensure Card
-        card_slug = 'vakifbank-worldcard'
+        card_slug = 'vakifworld'
         # Fallback Name: Since user renamed it VakıfWorld, default to VakıfWorld for new inserts, but search by slug always.
         self.card = self.db.query(Card).filter(Card.slug == card_slug).first()
         if not self.card:

@@ -53,14 +53,14 @@ class GarantiShopAndFlyScraper:
         with get_db_session() as db:
             card = db.query(Card).filter(
                 Card.bank_id == self.bank.id,
-                Card.slug == "garanti-shopandfly"
+                Card.slug == "garanti-shop-fly"
             ).first()
             
             if not card:
                 card = Card(
                     bank_id=self.bank.id,
                     name="Garanti Shop&Fly",
-                    slug="garanti-shopandfly",
+                    slug="garanti-shop-fly",
                     is_active=True
                 )
                 db.add(card)
