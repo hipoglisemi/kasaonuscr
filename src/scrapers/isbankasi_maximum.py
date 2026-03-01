@@ -233,8 +233,18 @@ class IsbankMaximumScraper:
 
     def _fetch_campaign_urls(self, limit: Optional[int] = None) -> List[str]:
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL}...")
-        self.page.goto(self.CAMPAIGNS_URL, wait_until="domcontentloaded", timeout=120000)
+        for attempt, wait in enumerate(["domcontentloaded", "commit", "load"]):
+            try:
+                print(f"   🔄 Attempt {attempt+1}/3 (wait_until={wait})...")
+                self.page.goto(self.CAMPAIGNS_URL, wait_until=wait, timeout=120000)
+                print(f"   ✅ Page loaded ({wait})")
+                break
+            except Exception as e:
+                print(f"   ⚠️ Attempt {attempt+1} failed: {e}")
+                if attempt == 2:
+                    print("   ❌ All attempts failed, continuing with current page state")
         time.sleep(5)
+
 
         scroll_count = 0
         while True:
