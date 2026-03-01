@@ -144,8 +144,8 @@ class IsbankMaximilesScraper:
     def _init_card(self):
         bank = self.db.query(Bank).filter(
             Bank.slug.in_([
-                'isbank',  # gerçek slug (seed.ts)
-                'isbankasi', 'is-bankasi', 'turkiye-is-bankasi',
+                'i-sbankasi',   # gerçek DB slug
+                'isbank', 'isbankasi', 'is-bankasi', 'turkiye-is-bankasi',
             ])
         ).first()
         if not bank:
@@ -186,13 +186,20 @@ class IsbankMaximilesScraper:
         self.browser = self.playwright.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox",
-                  "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1920,1080"]
+                  "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1920,1080",
+                  "--disable-blink-features=AutomationControlled",
+                  "--disable-extensions", "--disable-web-security"]
         )
         context = self.browser.new_context(
             viewport={"width": 1920, "height": 1080},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            locale="tr-TR",
+            timezone_id="Europe/Istanbul",
+            extra_http_headers={"Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8"}
         )
+        context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         self.page = context.new_page()
+        self.page.set_default_timeout(120000)
         print("✅ Playwright browser started.")
 
     def _stop_browser(self):
@@ -206,7 +213,7 @@ class IsbankMaximilesScraper:
 
     def _fetch_campaign_urls(self, limit: Optional[int] = None) -> List[str]:
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL}...")
-        self.page.goto(self.CAMPAIGNS_URL, wait_until="networkidle", timeout=60000)
+        self.page.goto(self.CAMPAIGNS_URL, wait_until="domcontentloaded", timeout=120000)
         time.sleep(5)
 
         prev_count = 0
