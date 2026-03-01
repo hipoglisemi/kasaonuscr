@@ -505,6 +505,21 @@ class IsbankMaximumScraper:
             return ""
         return re.sub(r"\s+", " ", text.replace("\n", " ").replace("\r", "")).strip()
 
+    def _to_title_case(self, text: str) -> str:
+        if not text: return ""
+        replacements = {"I": "ı", "İ": "i"}
+        lower_text = text
+        for k, v in replacements.items(): lower_text = lower_text.replace(k, v)
+        lower_text = lower_text.lower()
+        words = lower_text.split()
+        capitalized = []
+        for word in words:
+            if not word: continue
+            if word[0] == 'i': capitalized.append('İ' + word[1:])
+            elif word[0] == 'ı': capitalized.append('I' + word[1:])
+            else: capitalized.append(word.capitalize())
+        return " ".join(capitalized)
+
     def _get_or_create_slug(self, title: str) -> str:
         base = re.sub(r'[^a-z0-9]+', '-', re.sub(
             r'[şğüöçıŞĞÜÖÇİ]',
@@ -544,7 +559,9 @@ class IsbankMaximumScraper:
             ai_data = {}
 
         try:
-            slug = self._get_or_create_slug(ai_data.get("title") or data["title"])
+            raw_title = ai_data.get("title") or data.get("title") or ""
+            formatted_title = self._to_title_case(raw_title)
+            slug = self._get_or_create_slug(formatted_title)
 
             ai_cat = ai_data.get("sector", "Diğer")
             db_sector_name = SECTOR_MAP.get(ai_cat, "Diğer")
@@ -591,7 +608,7 @@ class IsbankMaximumScraper:
                 card_id=self.card_id,
                 sector_id=sector.id if sector else None,
                 slug=slug,
-                title=ai_data.get("title") or data["title"],
+                title=formatted_title,
                 description=ai_data.get("description") or data["title"][:200],
                 reward_text=ai_data.get("reward_text"),
                 reward_value=ai_data.get("reward_value"),
@@ -616,9 +633,11 @@ class IsbankMaximumScraper:
                 b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
                 
                 try:
-                    brand = self.db.query(Brand).filter(Brand.slug == b_slug).first()
+                    brand = self.db.query(Brand).filter(
+                        (Brand.slug == b_slug) | (Brand.name.ilike(b_name))
+                    ).first()
                     if not brand:
-                        brand = Brand(name=b_name, slug=b_slug)
+                        brand = Brand(name=self._to_title_case(b_name), slug=b_slug)
                         self.db.add(brand)
                         self.db.commit()
                 except Exception as e:
