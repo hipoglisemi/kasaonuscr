@@ -2,8 +2,8 @@ name: Archive Expired Campaigns
 
 on:
   schedule:
-    # Run at 00:05 UTC every day (03:05 Turkey Time)
-    - cron: '5 0 * * *'
+    # TSİ 04:00 → UTC 01:00
+    - cron: '0 1 * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
