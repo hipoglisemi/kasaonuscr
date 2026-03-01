@@ -315,25 +315,54 @@ class IsbankMaximumScraper:
                 break
 
         soup = BeautifulSoup(self.page.content(), "html.parser")
-        excluded = [
-            "bireysel", "ticari", "diger-kampanyalar", "vergi-odemeleri",
-            "movenpick", "arsivi", "ozel-bankacilik",
+        
+        excluded_suffixes = [
+            "-kampanyalari",
+            "-kampanyalar",
+            "premium-kampanyalar",
+            "tum-kampanyalar"
         ]
+        
+        excluded_paths = [
+            "/kampanyalar/seyahat",
+            "/kampanyalar/turizm",
+            "/kampanyalar/akaryakit",
+            "/kampanyalar/giyim-aksesuar",
+            "/kampanyalar/market",
+            "/kampanyalar/elektronik",
+            "/kampanyalar/beyaz-esya",
+            "/kampanyalar/mobilya-dekorasyon",
+            "/kampanyalar/egitim-kirtasiye",
+            "/kampanyalar/online-alisveris",
+            "/kampanyalar/otomotiv",
+            "/kampanyalar/vergi-odemeleri",
+            "/kampanyalar/maximum-mobil",
+            "/kampanyalar/diger",
+            "/kampanyalar/yeme-icme",
+            "/kampanyalar/maximum-pati-kart",
+            "/kampanyalar/arac-kiralama",
+            "/kampanyalar/bankamatik",
+            "bireysel", "ticari", "diger-kampanyalar",
+            "movenpick", "arsivi", "ozel-bankacilik"
+        ]
+
         all_links = []
         for a in soup.find_all("a", href=True):
-            href = a["href"]
+            href = a["href"].lower()
+            
             if (
-                "/kampanyalar/" in href
+                ("/kampanyalar/" in href or "kampanyalar/" in href)
                 and "arsiv" not in href
-                and "#gecmis" not in href
                 and "gecmis" not in href
-                and not href.endswith("-kampanyalari")
-                and "tum-kampanyalar" not in href
-                and not any(ex in href for ex in excluded)
-                and len(href) > 20
+                and "past" not in href
             ):
-                full_url = urljoin(self.BASE_URL, href)
-                all_links.append(full_url)
+                is_exact_category = any(href.endswith(path) for path in excluded_paths)
+                is_category_suffix = any(href.endswith(suffix) for suffix in excluded_suffixes)
+                is_common_page = "ozellikler" in href or "basvuru" in href or href.endswith("/kampanyalar")
+                
+                if not is_exact_category and not is_category_suffix and not is_common_page and len(href) > 25:
+                    full_url = urljoin(self.BASE_URL, a["href"])
+                    all_links.append(full_url)
 
         unique_urls = list(dict.fromkeys(all_links))
         if limit:
