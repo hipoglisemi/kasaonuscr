@@ -262,12 +262,20 @@ BANK_RULES = {
     """
 }
 
-# Configure Gemini
+# Configure Gemini with safety against hangs
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable is not set")
 
-genai.configure(api_key=GEMINI_API_KEY)
+try:
+    print("[DEBUG] Configuring google.generativeai...")
+    genai.configure(api_key=GEMINI_API_KEY)
+    print("[DEBUG] google.generativeai configured successfully.")
+except Exception as e:
+    print(f"[ERROR] Failed to configure google.generativeai: {e}")
+    # We don't raise here to avoid hanging the entire script 
+    # if the scraper just wants to run without AI initially
+
 
 
 class AIParser:
