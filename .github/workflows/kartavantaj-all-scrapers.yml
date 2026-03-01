@@ -97,11 +97,13 @@ jobs:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         PYTHONPATH: ${{ github.workspace }}
+        PYTHONUNBUFFERED: '1'
         DISPLAY: ':99'
       run: |
         Xvfb :99 -screen 0 1920x1080x24 &
         sleep 2
-        python src/scrapers/${{ matrix.scraper }}.py
+        python -u src/scrapers/${{ matrix.scraper }}.py
+
 
 
 
