@@ -597,6 +597,12 @@ class IsbankMaximumScraper:
         try:
             print("🚀 Starting İşbankası Maximum Scraper (Playwright)...")
             self._start_browser()
+            
+            # Close DB session to prevent idle connection timeout during long Playwright scroll
+            if self.db:
+                self.db.commit()
+                self.db.close()
+                
             urls = self._fetch_campaign_urls(limit=limit)
 
             success, skipped, failed = 0, 0, 0
@@ -612,6 +618,8 @@ class IsbankMaximumScraper:
                         failed += 1
                 except Exception as e:
                     print(f"❌ Error: {e}")
+                    if self.db:
+                        self.db.rollback()
                     failed += 1
                 time.sleep(1.5)
 
