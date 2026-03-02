@@ -280,6 +280,16 @@ class AmericanExpressScraper:
         
         if not full_conditions or len(full_conditions) < 20:
             raise ValueError("Could not extract campaign conditions - no content sections found")
+            
+        # ─── 3.5 Extract Explicit Header Info ─────────────────────────────────────
+        header_info = ""
+        for div in soup.find_all('div', class_=re.compile(r'public-sub|campaing')):
+            text = div.get_text(separator=' ', strip=True)
+            if 'tarihi:' in text.lower() or 'sektör:' in text.lower() or 'marka:' in text.lower():
+                header_info += text + "\n"
+        
+        if header_info:
+            full_conditions = f"--- KAMPANYA ÖZET BİLGİLERİ ---\n{header_info}\n--- DETAYLAR ---\n" + full_conditions
 
         # ─── 4. AI Parsing ───────────────────────────────────────────────────────
         print(f"  -> Title: {raw_title}")
@@ -313,8 +323,8 @@ class AmericanExpressScraper:
             except ValueError:
                 return None
 
-        start_date = parse_date(ai_data.get('startDate'))
-        end_date = parse_date(ai_data.get('endDate'))
+        start_date = parse_date(ai_data.get('start_date'))
+        end_date = parse_date(ai_data.get('end_date'))
 
         # Sector
         ai_sector_name = ai_data.get('sector')
