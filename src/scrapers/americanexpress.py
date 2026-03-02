@@ -323,20 +323,49 @@ class AmericanExpressScraper:
         sector_name = SECTOR_MAP.get(ai_sector_name, ai_sector_name) if ai_sector_name else 'Diğer'
         sector = self._get_or_create_sector(sector_name)
 
-        # ─── 5. Insert Campaign ──────────────────────────────────────────────────
+        # ─── 5. Format Conditions & Insert Campaign ──────────────────────────────
+        parsed_conditions = ai_data.get("conditions", [])
+        
+        # Build conditions lines starting with Participation and Cards
+        conditions_lines = []
+        participation = ai_data.get("participation")
+        if participation and participation != "Detayları İnceleyin":
+            conditions_lines.append(f"KATILIM: {participation}")
+            
+        cards = ai_data.get("cards", [])
+        if cards:
+            conditions_lines.append(f"GEÇERLİ KARTLAR: {', '.join(cards)}")
+            
+        # Add actual conditions
+        if isinstance(parsed_conditions, list):
+            conditions_lines.extend(parsed_conditions)
+        elif isinstance(parsed_conditions, str):
+            conditions_lines.append(parsed_conditions)
+            
+        if not conditions_lines:
+            conditions_lines.append(full_conditions[:1500] + "...") # fallback
+            
+        # Format as bullet points (except for our custom headers)
+        final_conditions = "\n".join(
+            f"- {c}" if not c.startswith("KATILIM:") and not c.startswith("GEÇERLİ KARTLAR:") else c 
+            for c in conditions_lines if c
+        )
+
         campaign = Campaign(
             title=final_title,
             slug=parsed_slug,
+            description=ai_data.get("description") or final_title,
             image_url=img_url,
             sector_id=sector.id,
             card_id=self.card_id,
             start_date=start_date,
             end_date=end_date,
-            reward_text=ai_data.get('rewardText'),
-            reward_type=ai_data.get('rewardType'),
-            reward_value=ai_data.get('rewardValue'),
+            reward_text=ai_data.get('reward_text'),
+            reward_type=ai_data.get('reward_type'),
+            reward_value=ai_data.get('reward_value'),
+            eligible_cards=", ".join(cards) or "American Express",
             is_active=True,
-            conditions=full_conditions,
+            conditions=final_conditions,
             tracking_url=url,
         )
 
