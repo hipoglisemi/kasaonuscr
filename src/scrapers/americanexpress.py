@@ -1,0 +1,363 @@
+"""
+American Express Turkey Scraper
+Powered by Playwright and AIParser
+"""
+
+import os
+import sys
+import time
+import requests
+import re
+import traceback
+from datetime import datetime
+from typing import Optional, Dict, Any, List
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(project_root, '.env'))
+except Exception:
+    pass
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+AIParser = None
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set")
+    
+from src.scrapers.param import Bank, Card, Sector, Brand, CampaignBrand, Campaign, SECTOR_MAP
+from src.utils.logger_utils import log_scraper_execution
+
+class AmericanExpressScraper:
+    """American Express scraper - Playwright based"""
+
+    BASE_URL = "https://www.americanexpress.com.tr"
+    CAMPAIGNS_URL = "https://www.americanexpress.com.tr/kampanyalar"
+    BANK_NAME = "American Express"
+    BANK_SLUG = "american-express"
+
+    def __init__(self):
+        self.engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
+        Session = sessionmaker(bind=self.engine)
+        self.db = Session()
+        
+        try:
+            from src.services.ai_parser import AIParser as _AIParser
+        except ImportError:
+            from services.ai_parser import AIParser as _AIParser
+        global AIParser
+        AIParser = _AIParser
+
+        self.ai_parser = AIParser()
+        self.stats = {"found": 0, "saved": 0, "skipped": 0, "failed": 0, "errors": []}
+
+    @staticmethod
+    def _slugify(text: str) -> str:
+        """Generate a URL-safe slug from text"""
+        import unicodedata
+        text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+        text = re.sub(r'[^\w\s-]', '', text.lower()).strip()
+        return re.sub(r'[-\s]+', '-', text)[:120]
+        
+    def _get_or_create_bank(self) -> Bank:
+        bank = self.db.query(Bank).filter_by(slug=self.BANK_SLUG).first()
+        if not bank:
+            bank = Bank(name=self.BANK_NAME, slug=self.BANK_SLUG)
+            self.db.add(bank)
+            self.db.commit()
+        return bank
+
+    def _get_or_create_card(self, bank_id: int) -> Card:
+        card = self.db.query(Card).filter_by(slug=self.BANK_SLUG).first()
+        if not card:
+            card = Card(
+                name="American Express", 
+                slug=self.BANK_SLUG, 
+                bank_id=bank_id
+            )
+            self.db.add(card)
+            self.db.commit()
+        return card
+
+    def _get_or_create_sector(self, sector_name: str) -> Sector:
+        slug = self._slugify(sector_name)
+        if not slug:
+            slug = "diger"
+            sector_name = "Diğer"
+            
+        sector = self.db.query(Sector).filter_by(slug=slug).first()
+        if not sector:
+            sector = Sector(name=sector_name, slug=slug)
+            self.db.add(sector)
+            self.db.commit()
+        return sector
+
+    def _get_or_create_brands(self, brand_names: List[str]) -> List[Brand]:
+        brands = []
+        for name in brand_names:
+            if not name or len(name.strip()) < 2:
+                continue
+                
+            brand_name = name.strip()
+            
+            # Anti-hallucination check specific to this scraper
+            lower_name = brand_name.lower()
+            if any(forbidden in lower_name for forbidden in ["american", "express", "amex", "garanti", "bbva"]):
+                continue
+
+            slug = self._slugify(brand_name)
+            if not slug:
+                continue
+                
+            brand = self.db.query(Brand).filter_by(slug=slug).first()
+            if not brand:
+                try:
+                    brand = Brand(name=brand_name, slug=slug)
+                    self.db.add(brand)
+                    self.db.commit()
+                except Exception as e:
+                    self.db.rollback()
+                    brand = self.db.query(Brand).filter_by(slug=slug).first()
+            if brand:
+                brands.append(brand)
+        return brands
+
+    def run(self, max_runs: Optional[int] = None):
+        """Execute the scraping process using simple requests"""
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting American Express scraper...")
+        start_time = time.time()
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+        }
+        
+        try:
+            # 1. Init DB Relationships
+            bank = self._get_or_create_bank()
+            card = self._get_or_create_card(bank.id)
+            self.card_id = card.id
+            
+            # 2. Get Campaign List
+            print(f"Loading {self.CAMPAIGNS_URL}")
+            response = requests.get(self.CAMPAIGNS_URL, headers=headers, timeout=30)
+            
+            if not response.ok:
+                raise Exception(f"Failed to load main page. Status: {response.status_code}")
+            
+            html = response.text
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            campaign_links = []
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if 'kampanyalar/' in href and href not in ('/kampanyalar', '/kampanyalar/', 'kampanyalar', 'kampanyalar/'):
+                    full_url = urljoin(self.BASE_URL, href)
+                    if full_url not in campaign_links:
+                        campaign_links.append(full_url)
+            
+            print(f"Found {len(campaign_links)} campaign links")
+            self.stats["found"] = len(campaign_links)
+            
+            if max_runs:
+                campaign_links = campaign_links[:max_runs]
+                print(f"Limiting to {max_runs} campaigns.")
+
+            # 3. Process Each Campaign Detail
+            for idx, link in enumerate(campaign_links, 1):
+                print(f"Processing {idx}/{len(campaign_links)}: {link}")
+                try:
+                    self._process_campaign(link, headers)
+                except Exception as e:
+                    print(f"Error processing {link}: {e}")
+                    # traceback.print_exc()
+                    self.stats["failed"] += 1
+                    self.stats["errors"].append({"url": link, "error": str(e)})
+
+            log_scraper_execution(
+                db=self.db,
+                scraper_name="american_express",
+                status="SUCCESS" if self.stats["failed"] == 0 else "PARTIAL",
+                total_found=self.stats["found"],
+                total_saved=self.stats["saved"],
+                total_skipped=self.stats["skipped"],
+                total_failed=self.stats["failed"],
+                error_details=self.stats["errors"] if self.stats["errors"] else None
+            )
+            
+        except Exception as e:
+            error_msg = traceback.format_exc()
+            print(f"Fatal error during American Express scraping:\n{error_msg}")
+            log_scraper_execution(
+                db=self.db,
+                scraper_name="american_express",
+                status="FAILED",
+                total_found=self.stats["found"],
+                total_saved=self.stats["saved"],
+                total_skipped=self.stats["skipped"],
+                total_failed=self.stats["failed"],
+                error_details={"error": error_msg}
+            )
+        finally:
+            self.db.close()
+            elapsed = time.time() - start_time
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Extraction completed in {elapsed:.2f} seconds.")
+            print(f"Stats: {self.stats}")
+            
+    def _process_campaign(self, url: str, headers: dict):
+        # Check if already exists
+        slug = url.rstrip('/').split('/')[-1]
+        
+        # Navigate to detail
+        response = requests.get(url, headers=headers, timeout=30)
+        if not response.ok:
+            raise Exception(f"Failed to load details: {response.status_code}")
+            
+        # Parse Page
+        html = response.text
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # 1. Extractor logic based on common Amex structure
+        title_elem = soup.find('h1') or soup.find('h2')
+        if not title_elem:
+             raise ValueError("Could not find campaign title (h1/h2)")
+        raw_title = title_elem.get_text(strip=True)
+        
+        # 2. Extract Image
+        img_url = None
+        # Often hero images are the first big image or an image within a specific banner class
+        images = soup.find_all('img')
+        for img in images:
+            src = img.get('src', '')
+            # Try to grab the largest/banner image, avoiding small icons/logos
+            if src and ('campaign' in src.lower() or 'banner' in src.lower() or 'hero' in src.lower()):
+                img_url = urljoin(self.BASE_URL, src)
+                break
+                
+        if not img_url and images:
+             # Fallback: grab the first image that isn't the logo
+             for img in images:
+                 src = img.get('src', '')
+                 if 'logo' not in src.lower() and src:
+                     img_url = urljoin(self.BASE_URL, src)
+                     break
+                     
+        # 3. Extract Conditions text
+        # Usually conditions are under "Diğer Bilgiler", "Kampanya Koşulları" or simply within <article>
+        conditions_text = []
+        
+        # Try finding the specific container first (if it exists)
+        target_divs = soup.find_all('div', class_=re.compile(r'detail|content|desc|koşul|kosul', re.I))
+        if target_divs:
+            for div in target_divs:
+                for p in div.find_all(['p', 'li']):
+                    text = p.get_text(strip=True)
+                    if text and len(text) > 10 and text not in conditions_text:
+                        conditions_text.append(text)
+        else:
+            # Fallback grab all paragraph and list text
+            for p in soup.find_all(['p', 'li']):
+                text = p.get_text(strip=True)
+                if text and len(text) > 15 and text not in conditions_text:
+                    conditions_text.append(text)
+                    
+        full_conditions = "\n".join(conditions_text)
+        if not full_conditions:
+            raise ValueError("Could not extract campaign conditions")
+
+        # 4. AI Parsing
+        print(f"  -> Title: {raw_title}")
+        print("  -> Sending to AI for parsing...")
+        ai_data = self.ai_parser.parse_campaign_data(
+            raw_text=full_conditions,
+            title=raw_title,
+            bank_name=self.BANK_NAME
+        )
+
+        if not ai_data or 'title' not in ai_data:
+            raise ValueError("AI parsing yielded no data")
+
+        # Extract values
+        final_title = ai_data.get('title', raw_title)
+        parsed_slug = self._slugify(final_title)
+        
+        # Double check slug
+        existing_again = self.db.query(Campaign).filter(Campaign.slug == parsed_slug).first()
+        if existing_again:
+            print(f"  -> Campaign already exists (after parsing): {parsed_slug}")
+            self.stats["skipped"] += 1
+            return
+
+        # Dates
+        def parse_date(date_str):
+            if not date_str or date_str.lower() in ['none', 'null', 'belirtilmemiş']:
+                return None
+            try:
+                return datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return None
+
+        start_date = parse_date(ai_data.get('startDate'))
+        end_date = parse_date(ai_data.get('endDate'))
+
+        # Sector
+        ai_sector_name = ai_data.get('sector')
+        if isinstance(ai_sector_name, list):
+             ai_sector_name = ai_sector_name[0] if ai_sector_name else 'Diğer'
+        sector_name = SECTOR_MAP.get(ai_sector_name, ai_sector_name) if ai_sector_name else 'Diğer'
+        sector = self._get_or_create_sector(sector_name)
+
+        # 5. Insert Campaign
+        campaign = Campaign(
+            title=final_title,
+            slug=parsed_slug,
+            image_url=img_url,
+            sector_id=sector.id,
+            card_id=self.card_id,
+            start_date=start_date,
+            end_date=end_date,
+            reward_text=ai_data.get('rewardText'),
+            reward_type=ai_data.get('rewardType'),
+            reward_value=ai_data.get('rewardValue'),
+            is_active=True,
+            conditions=full_conditions,
+        )
+
+        self.db.add(campaign)
+        self.db.commit()
+
+        # 6. Brands Linkage
+        brands_data = ai_data.get('brands', [])
+        if brands_data:
+            brands = self._get_or_create_brands(brands_data)
+            for brand in brands:
+                # Deduplicate
+                exists = self.db.query(CampaignBrand).filter_by(
+                    campaign_id=campaign.id, brand_id=brand.id
+                ).first()
+                if not exists:
+                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)
+                    self.db.add(cb)
+            self.db.commit()
+
+        print(f"  -> Saved successfully (ID: {campaign.id})")
+        self.stats["saved"] += 1
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="American Express Scraper")
+    parser.add_argument("--limit", type=int, help="Maximum number of campaigns to process")
+    args = parser.parse_args()
+    
+    scraper = AmericanExpressScraper()
+    scraper.run(max_runs=args.limit)
