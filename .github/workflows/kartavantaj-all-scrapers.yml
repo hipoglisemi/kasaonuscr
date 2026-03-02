@@ -12,6 +12,8 @@ on:
         type: choice
         options:
           - all
+          - akbank_axess
+          - akbank_business
           - akbank_free
           - akbank_wings
           - chippin
