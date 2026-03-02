@@ -409,6 +409,17 @@ class IsbankMaximumScraper:
             if "gecmis" in url or "geçmiş" in title.lower():
                 return None
 
+            # 404 kontrolü - Geçersiz/silinmiş sayfa filtresi
+            page_text = soup.get_text()
+            if any(phrase in page_text for phrase in [
+                "Üzgünüz, aradığınız sayfayı bulamadık",
+                "404",
+                "Sayfa Bulunamadı",
+                "Bu kampanya sona ermiştir",
+            ]):
+                print(f"   ⏭️  Skipped (404/expired page): {url}")
+                return None
+
             # Date
             date_text = ""
             for sel in ["span[id$='KampanyaTarihleri']", ".campaign-date", ".date"]:
@@ -552,6 +563,7 @@ class IsbankMaximumScraper:
             ai_data = self.parser.parse_campaign_data(
                 raw_text=data["full_text"],
                 bank_name=self.BANK_NAME,
+                title=data["title"],
             ) or {}
         except Exception as e:
             self.db.rollback()
