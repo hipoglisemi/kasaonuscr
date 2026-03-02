@@ -7,12 +7,35 @@ import os
 import json
 import re
 import logging
+import decimal
+import signal
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 import google.generativeai as genai
 from dotenv import load_dotenv
 from .text_cleaner import clean_campaign_text
 from .brand_normalizer import cleanup_brands
+
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Gemini API call timed out")
+
+def call_with_timeout(func, args=(), kwargs=None, timeout_sec=60):
+    if kwargs is None:
+        kwargs = {}
+    
+    # Set the signal handler and a alarm
+    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout_sec)
+    try:
+        result = func(*args, **kwargs)
+        return result
+    finally:
+        # Disable the alarm
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
 
 load_dotenv()
 
@@ -274,6 +297,17 @@ BANK_RULES = {
     - 🚨 🚨 **CRITICAL**: Extract every important point from the specific section "Nelere Dikkat Etmelisiniz".
     - 🚨 FORMAT: 4-6 concise bullet points.
     - Include: Spend limits, dates, "Ayın Enparalısı" requirement, and brand-specific exclusions.
+    """,
+    "param": """
+🚨 PARAM SPECIFIC RULES:
+- TERMINOLOGY: "Nakit İade". 
+- ELIGIBLE CARDS:
+    - 🚨 STRICT: Extract ONLY cards mentioned, typically "ParamKart" or "Param TROY Kart".
+- BRANDS & SECTOR:
+    - 🚨 CRITICAL: Extract the brand name accurately (e.g., 'Koton', 'Pazarama', 'IKEA') and put it in the `brands` array. Do NOT put 'Param' as a brand.
+    - Sector: Pick the correct sector from the valid list based on the brand or general context (e.g., 'Koton' -> 'Giyim & Aksesuar').
+- PARTICIPATION:
+    - Primary method is typically clicking "Katıl" in "Param Mobil" or checking out with "TROY indirim kodu".
     """
 }
 
@@ -336,10 +370,12 @@ class AIParser:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                # Call Gemini with a timeout to prevent hanging
-                response = self.model.generate_content(
-                    prompt,
-                    request_options={'timeout': 60}
+                # Call Gemini with a strict system timeout
+                response = call_with_timeout(
+                    self.model.generate_content,
+                    args=(prompt,),
+                    kwargs={'request_options': {'timeout': 60}},
+                    timeout_sec=65
                 )
                 
                 # Debugging info
@@ -735,9 +771,12 @@ JSON olarak cevap ver:
 }}}}"""
     
     try:
-        response = parser.model.generate_content(
-            prompt,
-            request_options={'timeout': 60}
+        # Strict timeout wrapper to avoid grpc hangs
+        response = call_with_timeout(
+            parser.model.generate_content,
+            args=(prompt,),
+            kwargs={'request_options': {'timeout': 60}},
+            timeout_sec=65
         )
         result_text = response.text.strip()
         json_data = parser._extract_json(result_text)
