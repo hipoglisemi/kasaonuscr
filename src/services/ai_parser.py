@@ -62,7 +62,7 @@ BANK_RULES = {
     - SMS: Often 3340.
 """,
     'işbankası': """
-🚨 IS BANKASI/MAXIMUM SPECIFIC RULES:
+🚨 IS BANKASI/MAXIMUM/MAXIMİLES SPECIFIC RULES:
 - TERMINOLOGY: "Maxipuan" (Points) or "MaxiMil" (Miles).
 - ELIGIBLE CARDS:
     - Keywords: "Maximum Kart", "Maximum Gold", "Maximum Platinum", "Maximiles", "Privia", "İş Bankası Bankamatik Kartı".
@@ -76,7 +76,17 @@ BANK_RULES = {
     - 🚨 STRICT APP NAMES: ONLY use "Maximum Mobil", "İşCep", or "Pazarama".
     - ⛔ NEGATIVE CONSTRAINT: NEVER use "World Mobil", "Jüzdan", "BonusFlaş", "Yapı Kredi". If you see these, it's a hallucination or cross-promotion; ignore them.
 - 🚨 DISCOUNT CODES: If there is an "İndirim Kodu" (e.g., TRBAN25, TROY2024), **MUTLAKA** both 'conditions' listesine ekle hem de 'description' içinde belirt.
-- 🚨 DETAIL LEVEL: DO NOT summarize heavily. Keep all specific rules about minimum spend, exclusions, and merchant types.
+- CONDITIONS (SUMMARY MODE):
+    - ✔️ ÖZETLE: Maksimum 5-6 madde. Uzun yasal metinleri, tekrar eden kartım bilgilerini ve işlem türü sayımlarını atlat.
+    - 🚨 İÇERİK: Sadece şunları yaz:
+      * Minimum harcama eşiği ("2.000 TL harcamaya 200 MaxiMil")
+      * Maksimum kazanç limiti ("Maks. 1.500 MaxiMil")
+      * Kampanya dışı kart/işlem türleri ("Nakit çekim, havale hariç")
+      * Özel koşul varsa ("Sadece yurt dışı harcamalar")
+    - ⛔ YAZMA: Tarihleri, katılım yöntemini, kart isimlerini tekrar YAZMA.
+- BRANDS (SECTOR TAGGING):
+    - 🚨 ÖNEMLI: Kampanya belirli bir marka/zincir içinse (Zara, Emirates, Migros vb.) o marka ismini 'brands' listesine ekle.
+    - Sektör için: "MaxiMil" → Dijital Platform; "Duty Free" veya "Yurt Dışı Harcama" → Turizm & Konaklama veya Ulaşım; "Zara Home" → Mobilya & Dekorasyon.
 """,
     'vakıfbank': """
 🚨 VAKIFBANK/WORLD SPECIFIC RULES:
@@ -430,10 +440,10 @@ VALID SECTORS (BİRİNİ SEÇ — SADECE bu listeden):
     - "Peşin fiyatına" gibi detayları yazma, sadece "150 TL Puan", "+4 Taksit", "%20 İndirim" yaz.
     - Eğer "100 TL Worldpuan" diyorsa "100 TL Worldpuan" yaz. (Değer + Tür)
 6. **CONDITIONS**: 
-    - Metindeki tüm önemli kullanım koşullarını, kısıtlamaları ve istisnaları madde madde çıkar.
-    - 🚨 ÖZETLEME YASAĞI: Koşulları aşırı özetleme, kritik nüansları (ör. "X hariç", "Y dahil", "Z kodlu") koru.
-    - 🚨 TEKRAR KURALI: Eğer bir bilgi zaten 'start_date', 'end_date', 'cards', 'participation' veya 'sectors' alanlarına çekilmişse, bu bilgiyi tekrar 'conditions' listesine EKLEME. (Tarih ve kart isimleri hariç, kuralın kendisi önemliyse eklenebilir).
-    - Sadece ek koşulları, limitleri ve kısıtlamaları buraya yaz.
+    - Koşulları **maksimum 8-9 madde** olarak özetle. Uzun yasal metinleri atla.
+    - 🚨 İÇER: Minimum harcama eşiği, maksimum kazanç limiti, kampanya dışı işlem/kart türleri.
+    - 🚨 TEKRAR KURALI: 'start_date', 'end_date', 'cards', 'participation' alanlarında zaten olan bilgiyi TEKRAR YAZMA.
+    - Bankaya özel kural varsa (yukarda belirtilmişse) o kuralı öncelikle uygula.
 7. **DATES (KRİTİK)**: 
     - Tüm tarihleri 'YYYY-MM-DD' formatında ver.
     - 🚨 YIL KURALI: Eğer yıl belirtilmemişse:
