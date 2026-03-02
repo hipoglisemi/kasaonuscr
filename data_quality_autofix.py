@@ -16,9 +16,32 @@ from bs4 import BeautifulSoup
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.models import Campaign
+import re
+import uuid
+from src.models import Campaign, Sector, Brand, CampaignBrand
 from src.database import get_db_session
 from src.services.ai_parser import parse_campaign_data
+
+SECTOR_MAP = {
+    "Market & Gıda": "Market",
+    "Giyim & Aksesuar": "Giyim",
+    "Restoran & Kafe": "Restoran & Kafe",
+    "Turizm & Konaklama": "Seyahat",
+    "Elektronik": "Elektronik",
+    "Mobilya & Dekorasyon": "Mobilya & Dekorasyon",
+    "Kozmetik & Sağlık": "Kozmetik & Sağlık",
+    "E-Ticaret": "E-Ticaret",
+    "Ulaşım": "Ulaşım",
+    "Dijital Platform": "Dijital Platform",
+    "Kültür & Sanat": "Kültür & Sanat",
+    "Eğitim": "Eğitim",
+    "Sigorta": "Sigorta",
+    "Otomotiv": "Otomotiv",
+    "Vergi & Kamu": "Vergi & Kamu",
+    "Kuyum, Optik ve Saat": "Kuyum, Optik ve Saat",
+    "Akaryakıt": "Akaryakıt",
+    "Diğer": "Diğer",
+}
 
 def fetch_html(url: str) -> str:
     """Attempts to fetch the HTML content of a URL."""
@@ -79,7 +102,20 @@ def run_autofix():
                 if not c.conditions or c.conditions.strip() == "":
                     is_defective = True
                     reasons.append("Missing Conditions")
-                    
+
+                # Sektör kontrolü: boş veya Diğer
+                if not c.sector_id:
+                    is_defective = True
+                    reasons.append("Missing Sector")
+                elif c.sector and c.sector.name == "Diğer":
+                    is_defective = True
+                    reasons.append("Sector=Diğer (needs reclassification)")
+
+                # Marka kontrolü: campaign_brands boş
+                if not c.brands:
+                    is_defective = True
+                    reasons.append("Missing Brands")
+
                 if is_defective and c.tracking_url:
                     to_fix.append({"campaign": c, "reasons": reasons})
             
@@ -171,16 +207,58 @@ def run_autofix():
                 if not c.conditions or c.conditions.strip() == "":
                     if ai_data.get("conditions"):
                         print(f"   ✨ Repaired Conditions!")
-                        c.conditions = "\\n".join(f"- {cond}" for cond in ai_data.get("conditions", []))
+                        c.conditions = "\n".join(f"- {cond}" for cond in ai_data.get("conditions", []))
                         updated = True
-                
+
+                # --- Sektör tamiri ---
+                ai_sector_name = ai_data.get("sector", "Diğer")
+                db_sector_name = SECTOR_MAP.get(ai_sector_name, "Diğer")
+                needs_sector_fix = (
+                    not c.sector_id or
+                    (c.sector and c.sector.name == "Diğer" and db_sector_name != "Diğer")
+                )
+                if needs_sector_fix and db_sector_name != "Diğer":
+                    sector = db.query(Sector).filter(Sector.name == db_sector_name).first()
+                    if not sector:
+                        sector = db.query(Sector).filter(Sector.slug == 'diger').first()
+                    if sector:
+                        c.sector_id = sector.id
+                        print(f"   ✨ Repaired Sector: {sector.name}")
+                        updated = True
+
+                # --- Marka tamiri ---
+                if not c.brands and ai_data.get("brands"):
+                    for b_name in ai_data["brands"]:
+                        if len(b_name) < 2:
+                            continue
+                        b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
+                        try:
+                            brand = db.query(Brand).filter(
+                                (Brand.slug == b_slug) | (Brand.name.ilike(b_name))
+                            ).first()
+                            if not brand:
+                                brand = Brand(name=b_name, slug=b_slug)
+                                db.add(brand)
+                                db.flush()
+                            link = db.query(CampaignBrand).filter(
+                                CampaignBrand.campaign_id == c.id,
+                                CampaignBrand.brand_id == brand.id
+                            ).first()
+                            if not link:
+                                db.add(CampaignBrand(campaign_id=c.id, brand_id=brand.id))
+                                print(f"   ✨ Added Brand: {b_name}")
+                                updated = True
+                        except Exception as be:
+                            db.rollback()
+                            print(f"   ⚠️ Brand fix failed for {b_name}: {be}")
+
                 if updated:
                     db.commit()
                     fixed_count += 1
                     print(f"   ✅ Campaign successfully repaired and saved!")
                 else:
                     print(f"   ⚠️ AI didn't find the missing data. No changes made.")
-                
+
                 # Be gentle to the API limits
                 time.sleep(2)
                 
