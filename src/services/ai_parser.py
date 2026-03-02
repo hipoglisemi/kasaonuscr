@@ -336,8 +336,11 @@ class AIParser:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                # Call Gemini
-                response = self.model.generate_content(prompt)
+                # Call Gemini with a timeout to prevent hanging
+                response = self.model.generate_content(
+                    prompt,
+                    request_options={'timeout': 60}
+                )
                 
                 # Debugging info
                 try:
@@ -732,7 +735,10 @@ JSON olarak cevap ver:
 }}}}"""
     
     try:
-        response = parser.model.generate_content(prompt)
+        response = parser.model.generate_content(
+            prompt,
+            request_options={'timeout': 60}
+        )
         result_text = response.text.strip()
         json_data = parser._extract_json(result_text)
         
