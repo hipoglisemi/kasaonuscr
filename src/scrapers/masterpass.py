@@ -1,6 +1,6 @@
 """
-ParamKart Scraper
-Powered by Playwright (Handles Lazy Loading via Scrolling)
+Masterpass Plus Scraper
+Powered by Playwright
 """
 
 import os
@@ -37,91 +37,16 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL is not set")
     
+from src.scrapers.param import Bank, Card, Sector, Brand, CampaignBrand, Campaign, SECTOR_MAP
 from src.utils.logger_utils import log_scraper_execution
-Base = declarative_base()
 
-class Bank(Base):
-    __tablename__ = 'banks'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    slug = Column(String)
-    cards = relationship("Card", back_populates="bank")
+class MasterpassScraper:
+    """Masterpass Plus scraper - Playwright based"""
 
-class Card(Base):
-    __tablename__ = 'cards'
-    id = Column(Integer, primary_key=True)
-    bank_id = Column(Integer, ForeignKey('banks.id'))
-    name = Column(String)
-    slug = Column(String)
-    is_active = Column(Boolean, default=True)
-    bank = relationship("Bank", back_populates="cards")
-    campaigns = relationship("Campaign", back_populates="card")
-
-class Sector(Base):
-    __tablename__ = 'sectors'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    slug = Column(String)
-    campaigns = relationship("Campaign", back_populates="sector")
-
-class Brand(Base):
-    __tablename__ = 'brands'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String)
-    slug = Column(String)
-    campaigns = relationship("CampaignBrand", back_populates="brand")
-
-class CampaignBrand(Base):
-    __tablename__ = 'campaign_brands'
-    campaign_id = Column(Integer, ForeignKey('campaigns.id'), primary_key=True)
-    brand_id = Column(UUID(as_uuid=True), ForeignKey('brands.id'), primary_key=True)
-    brand = relationship("Brand", back_populates="campaigns")
-    campaign = relationship("Campaign", back_populates="brands")
-
-class Campaign(Base):
-    __tablename__ = 'campaigns'
-    id = Column(Integer, primary_key=True)
-    card_id = Column(Integer, ForeignKey('cards.id'))
-    sector_id = Column(Integer, ForeignKey('sectors.id'))
-    slug = Column(String)
-    title = Column(String)
-    description = Column(String)
-    reward_text = Column(String)
-    reward_value = Column(Numeric)
-    reward_type = Column(String)
-    conditions = Column(String)
-    eligible_cards = Column(String)
-    image_url = Column(String)
-    start_date = Column(Date)
-    end_date = Column(Date)
-    is_active = Column(Boolean, default=True)
-    tracking_url = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-    ai_marketing_text = Column(String)
-    card = relationship("Card", back_populates="campaigns")
-    sector = relationship("Sector", back_populates="campaigns")
-    brands = relationship("CampaignBrand", back_populates="campaign")
-
-
-SECTOR_MAP = {
-    "Market & Gıda": "Market", "Giyim & Aksesuar": "Giyim",
-    "Restoran & Kafe": "Restoran & Kafe", "Seyahat": "Seyahat",
-    "Turizm & Konaklama": "Seyahat", "Elektronik": "Elektronik",
-    "Mobilya & Dekorasyon": "Mobilya & Dekorasyon",
-    "Kozmetik & Sağlık": "Kozmetik & Sağlık", "E-Ticaret": "E-Ticaret",
-    "Otomotiv": "Otomotiv", "Sigorta": "Sigorta", "Eğitim": "Eğitim",
-    "Kültür & Sanat": "Kültür & Sanat", "Eğlence": "Kültür & Sanat",
-    "Diğer": "Diğer",
-}
-
-class ParamScraper:
-    """Param scraper - Playwright based (Handles infinite scroll on list and details)"""
-
-    BASE_URL = "https://param.com.tr"
-    CAMPAIGNS_URL = "https://param.com.tr/tum-avantajlar"
-    BANK_NAME = "Param"
-    BANK_SLUG = "param"
+    BASE_URL = "https://www.masterpassturkiye.com"
+    CAMPAIGNS_URL = "https://www.masterpassturkiye.com/masterpassplus"
+    BANK_NAME = "Mastercard"
+    BANK_SLUG = "mastercard"
 
     def __init__(self):
         self.engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
@@ -143,17 +68,16 @@ class ParamScraper:
     def _init_card(self):
         bank = self.db.query(Bank).filter(Bank.slug == self.BANK_SLUG).first()
         if not bank:
-            print(f"⚠️  Param not found in DB, creating...")
-            # We don't have a guaranteed stable logo for param right now, but we can set a basic one if needed
+            print(f"⚠️  Masterpass not found in DB, creating...")
             bank = Bank(name=self.BANK_NAME, slug=self.BANK_SLUG)
             self.db.add(bank)
             self.db.commit()
         print(f"✅ Bank: {bank.name} (ID: {bank.id})")
 
-        card = self.db.query(Card).filter(Card.slug == 'paramkart').first()
+        card = self.db.query(Card).filter(Card.slug == 'mastercard').first()
         if not card:
-            print(f"⚠️  Card 'paramkart' not found, creating...")
-            card = Card(bank_id=bank.id, name='ParamKart', slug='paramkart', is_active=True)
+            print(f"⚠️  Card 'mastercard' not found, creating...")
+            card = Card(bank_id=bank.id, name='Mastercard', slug='mastercard', is_active=True)
             self.db.add(card)
             self.db.commit()
         self.card_id = card.id
@@ -203,45 +127,29 @@ class ParamScraper:
 
     def _stop_browser(self):
         try:
-            if self.browser:
-                self.browser.close()
-            if self.playwright:
-                self.playwright.stop()
+            if self.page: self.page.close()
+            if self.browser: self.browser.close()
+            if self.playwright: self.playwright.stop()
         except Exception:
             pass
 
     def _fetch_campaign_urls(self, limit: Optional[int] = None) -> List[str]:
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL} ...")
-        self.page.goto(self.CAMPAIGNS_URL, wait_until="domcontentloaded", timeout=120000)
-        time.sleep(5)
+        self.page.goto(self.CAMPAIGNS_URL, wait_until="networkidle", timeout=120000)
+        time.sleep(3)
 
-        print("   ⏬ Scrolling down to load all campaigns...")
-        last_height = self.page.evaluate("document.body.scrollHeight")
-        scroll_count = 0
-        while scroll_count < 30:
-            self.page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2.5)
-            new_height = self.page.evaluate("document.body.scrollHeight")
-            if new_height == last_height:
-                break
-            last_height = new_height
-            scroll_count += 1
-            if limit:
-                # Early break if limit reached
-                soup = BeautifulSoup(self.page.content(), "html.parser")
-                count = len(set([a['href'] for a in soup.select('a[href^="/avantajlar/"]') if a['href'] != '/avantajlar/']))
-                if count >= limit:
-                    break
-
-        print(f"   ⏬ Scrolled {scroll_count} times.")
-        
         soup = BeautifulSoup(self.page.content(), "html.parser")
+        
+        a_tags = soup.find_all('a', href=True)
         all_links = []
         
-        for a in soup.select('a[href^="/avantajlar/"]'):
+        for a in a_tags:
             href = a['href']
-            if href != '/avantajlar/' and "tum-avantajlar" not in href:
-                full_url = urljoin(self.BASE_URL, href)
+            if '/masterpassplus/' in href and href != '/masterpassplus' and href != '/masterpassplus/':
+                if not href.startswith('http'):
+                    full_url = urljoin(self.BASE_URL, href)
+                else:
+                    full_url = href
                 all_links.append(full_url)
 
         unique_urls = list(dict.fromkeys(all_links))
@@ -256,7 +164,8 @@ class ParamScraper:
             success = False
             for attempt in range(2):
                 try:
-                    self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                    self.page.goto(url, wait_until="networkidle", timeout=60000)
+                    time.sleep(2)
                     success = True
                     break
                 except Exception as e:
@@ -267,33 +176,6 @@ class ParamScraper:
                 print(f"      ❌ Could not load detail page: {url}")
                 return None
                 
-            # Click accept cookies banner if it exists and blocks view
-            try:
-                btn = self.page.query_selector('button[id*="cookie-accept"], button[class*="cookie"]')
-                if btn and btn.is_visible():
-                    btn.click()
-            except:
-                pass
-
-            # Scroll to bottom of detail page as user requested to trigger lazy loading of content
-            print("      ⏬ Scrolling detail page...")
-            self.page.evaluate("""async () => {
-                await new Promise((resolve) => {
-                    let totalHeight = 0;
-                    let distance = 300;
-                    let timer = setInterval(() => {
-                        let scrollHeight = document.body.scrollHeight;
-                        window.scrollBy(0, distance);
-                        totalHeight += distance;
-                        if(totalHeight >= scrollHeight){
-                            clearInterval(timer);
-                            resolve();
-                        }
-                    }, 100);
-                });
-            }""")
-            time.sleep(1.5)
-
             soup = BeautifulSoup(self.page.content(), "html.parser")
             
             # Title
@@ -302,30 +184,28 @@ class ParamScraper:
 
             # Image
             image_url = None
-            img_el = soup.select_one("img.img-fluid, .avantaj-resim img, img.hero-image")
-            if img_el and img_el.get("src"):
-                image_url = urljoin(self.BASE_URL, img_el["src"])
-            
-            # Date extract from full text later if needed, but sometimes it is in specific fields
+            imgs = soup.find_all('img')
+            for img in imgs:
+                src = img.get('src')
+                if src and ('kampanya' in src.lower() or 'offer' in src.lower() or 'campaign' in src.lower() or 'detail' in src.lower()):
+                    if not src.startswith('data:'):
+                        image_url = urljoin(self.BASE_URL, src)
+                        break
             
             # Content Extraction
             conditions = []
+            for div in soup.find_all('div'):
+                text = div.get_text(separator='\\n').strip()
+                if ('Koşul' in text or len(text) > 300) and 'Anasayfa' not in text[:50] and len(text) < 10000:
+                    lines = [self._clean(t) for t in text.split('\\n') if len(self._clean(t)) > 10]
+                    conditions.extend(lines)
+                    break # Usually there's only one main long div
             
-            # Param often uses lists for "Temel Bilgi" and "Genel Bilgi"
-            for ul in soup.find_all('ul'):
-                for li in ul.find_all('li'):
-                    text = self._clean(li.text)
-                    if text and len(text) > 10 and not text.startswith("Bizi Takip Edin"):
-                        conditions.append(text)
-            
-            # If nothing found in lists, look for paragraphs under specific sections
             if not conditions:
+                print("   ⚠️ Could not easily find conditions block, checking p tags")
                 for p in soup.find_all('p'):
-                    text = self._clean(p.text)
-                    if text and len(text) > 20 and "Bizi Takip Edin" not in text:
-                        conditions.append(text)
-                        
-            # Assemble full text for AI
+                    if len(p.text) > 20: conditions.append(self._clean(p.text))
+
             full_text = f"Title: {title}\\n\\n" + "\\n".join(conditions)
 
             return {
@@ -372,10 +252,10 @@ class ParamScraper:
         blacklist = [
             "değişiklik yapma hakkı", 
             "saklı tutar", 
-            "yazım hataları", 
             "sorumlu tutulamaz", 
             "sorumluluk kabul edilmez",
-            "durdurma hakkına sahiptir"
+            "durdurma hakkına sahiptir",
+            "kullanım koşulları"
         ]
         clean = []
         for c in conditions:
@@ -443,6 +323,8 @@ class ParamScraper:
                 conds.insert(0, f"KATILIM: {part}")
                 
             conds = self._filter_conditions(conds)
+            
+            # Prevent empty text formatting array issues by using newlines instead of string literals
             final_conditions = "\n".join(conds) if conds else "\n".join(data["conditions"])
 
             if existing:
@@ -453,7 +335,7 @@ class ParamScraper:
                 existing.reward_value = ai_data.get("reward_value")
                 existing.reward_type = ai_data.get("reward_type")
                 existing.conditions = final_conditions
-                existing.eligible_cards = ", ".join(ai_data.get("cards", [])) or "ParamKart"
+                existing.eligible_cards = ", ".join(ai_data.get("cards", [])) or "Mastercard"
                 if data["image_url"]:
                     existing.image_url = data["image_url"]
                 existing.start_date = start_date or existing.start_date
@@ -471,7 +353,7 @@ class ParamScraper:
                     reward_value=ai_data.get("reward_value"),
                     reward_type=ai_data.get("reward_type"),
                     conditions=final_conditions,
-                    eligible_cards=", ".join(ai_data.get("cards", [])) or "ParamKart",
+                    eligible_cards=", ".join(ai_data.get("cards", [])) or "Mastercard",
                     image_url=data.get("image_url"),
                     start_date=start_date, end_date=end_date,
                     is_active=True, tracking_url=url,
@@ -485,6 +367,10 @@ class ParamScraper:
             for b_name in ai_data.get("brands", []):
                 if len(b_name) < 2:
                     continue
+                # Hardcoded ignore because AI hallucinated sometimes
+                if b_name.lower() in ["masterpass", "mastercard"]:
+                    continue
+                    
                 b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
 
                 try:
@@ -522,7 +408,7 @@ class ParamScraper:
 
     def run(self, limit: Optional[int] = None, force: bool = False):
         try:
-            print("🚀 Starting Param Scraper (Playwright)...")
+            print("🚀 Starting Masterpass Scraper (Playwright)...")
             self._start_browser()
             
             if self.db:
@@ -533,7 +419,7 @@ class ParamScraper:
             
             success, skipped, failed = 0, 0, 0
             for i, url in enumerate(urls, 1):
-                print(f"\\n[{i}/{len(urls)}]")
+                print(f"\n[{i}/{len(urls)}]")
                 try:
                     res = self._process_campaign(url, force=force)
                     if res == "saved":
@@ -548,33 +434,35 @@ class ParamScraper:
                         self.db.rollback()
                     failed += 1
                 time.sleep(1)
-            print(f"\\n🏁 Finished. {len(urls)} found, {success} saved, {skipped} skipped, {failed} errors")
+            print(f"\n🏁 Finished. {len(urls)} found, {success} saved, {skipped} skipped, {failed} errors")
             
             # Log successful or partial execution
             if self.db:
                 log_scraper_execution(
                     db=self.db,
-                    scraper_name="param",
+                    scraper_name="masterpass",
                     status="SUCCESS" if failed == 0 else ("PARTIAL" if success > 0 else "FAILED"),
                     total_found=len(urls),
                     total_saved=success,
                     total_skipped=skipped,
                     total_failed=failed
                 )
+                
         except Exception as e:
             print(f"❌ Scraper error: {e}")
             if self.db:
                 error_details = {"traceback": traceback.format_exc(), "error": str(e)}
                 log_scraper_execution(
                     db=self.db,
-                    scraper_name="param",
+                    scraper_name="masterpass",
                     status="FAILED",
                     error_details=error_details
                 )
             raise
         finally:
             self._stop_browser()
-            self.db.close()
+            if self.db:
+                self.db.close()
 
 
 if __name__ == "__main__":
@@ -584,5 +472,6 @@ if __name__ == "__main__":
     parser.add_argument("--force", action="store_true", help="Force update existing campaigns")
     args = parser.parse_args()
     
-    scraper = ParamScraper()
+    scraper = MasterpassScraper()
     scraper.run(limit=args.limit, force=args.force)
+

@@ -212,6 +212,10 @@ def run_autofix():
 
                 # --- Sektör tamiri ---
                 ai_sector_name = ai_data.get("sector", "Diğer")
+                # AI sometimes returns a list for the sector (e.g. ["Market"]) instead of a string
+                if isinstance(ai_sector_name, list):
+                    ai_sector_name = ai_sector_name[0] if len(ai_sector_name) > 0 else "Diğer"
+                    
                 db_sector_name = SECTOR_MAP.get(ai_sector_name, "Diğer")
                 needs_sector_fix = (
                     not c.sector_id or

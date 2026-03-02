@@ -308,6 +308,18 @@ BANK_RULES = {
     - Sector: Pick the correct sector from the valid list based on the brand or general context (e.g., 'Koton' -> 'Giyim & Aksesuar').
 - PARTICIPATION:
     - Primary method is typically clicking "Katıl" in "Param Mobil" or checking out with "TROY indirim kodu".
+    """,
+    "masterpass": """
+🚨 MASTERPASS SPECIFIC RULES:
+- TERMINOLOGY: "İndirim", "Kupon", "İade". Rewards are usually TL value or Percent.
+- ELIGIBLE CARDS: 
+    - 🚨 STRICT: Extract ONLY the cards mentioned, typically "Masterpass'e kayıtlı Mastercard", "Maestro kartlar", "Troy kartlar", vb. Do NOT write "Tüm kartlar" unless explicitly stated.
+- BRANDS & SECTOR:
+    - 🚨 CRITICAL: Extract the brand name accurately (e.g., 'Martı', 'Boyner', 'Uber', 'Getir', 'Galatasaray') and put it in the `brands` array. Do NOT put 'Masterpass' or 'Mastercard' as a brand.
+    - Sector: Pick the correct sector from the valid list based on the brand or general context. If it's a sports event, match, or team (like UEFA, Galatasaray), categorize as 'Kültür & Sanat' or 'Eğlence'.
+- PARTICIPATION:
+    - Look for "Masterpass ile ödeme" or "Masterpass'e kayıtlı kartınızla".
+    - Often requires clicking "Kupon Al". Write participation instructions exactly as described.
     """
 }
 
@@ -474,8 +486,10 @@ Bugünün tarihi: {current_date} (Yıl: {datetime.now().year})
 {bank_instructions}
 {title_instruction}
 
-VALID SECTORS (BİRİNİ SEÇ — SADECE bu listeden):
-[Market & Gıda, Akaryakıt, Giyim & Aksesuar, Restoran & Kafe, Elektronik, Mobilya & Dekorasyon, Kozmetik & Sağlık, E-Ticaret, Ulaşım, Dijital Platform, Kültür & Sanat, Eğitim, Sigorta, Otomotiv, Vergi & Kamu, Turizm & Konaklama, Kuyum, Optik ve Saat, Diğer]
+VALID- SECTOR:
+    Pick ONE matching sector from this exact list:
+    ['Market & Gıda', 'Akaryakıt', 'Giyim & Aksesuar', 'Elektronik & Teknoloji', 'Seyahat & Konaklama', 'Sağlık & Kozmetik', 'Restoran & Kafe', 'E-Ticaret', 'Eğlence', 'Kültür & Sanat', 'Otomotiv', 'Mobilya & Dekorasyon', 'Eğitim', 'Diğer', 'Hizmet', 'Sigorta', 'Emlak']
+    🚨 NOTE: If the campaign is about Sports, Matches, Football, Theatre, or Concerts (e.g., UEFA, Galatasaray, tiyatro, sinema), it MUST be categorized as 'Kültür & Sanat' or 'Eğlence', NOT 'Diğer'.
 
 ⭐⭐⭐ KRİTİK KURALLAR (DOKUNULMAZ) ⭐⭐⭐
 1. **DİL**: Tamamı TÜRKÇE olmalı.

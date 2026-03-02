@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from src.database import get_db_session
 from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand
 from src.services.ai_parser import AIParser
+from src.utils.logger_utils import log_scraper_execution
 
 class ParafScraper:
     """
@@ -101,11 +102,29 @@ class ParafScraper:
                     print(f"      ❌ Error: {e}")
                     failed_count += 1
                     
-            print(f"   ✅ Özet: {len(campaigns)} bulundu, {success_count} eklendi, {skipped_count + failed_count} atlandı/hata aldı.")
+            print(f"   ✅ Özet: {len(campaigns)} bulundu, {success_count} eklendi, {skipped_count} atlandı, {failed_count} hata aldı.")
+            
+            # Log execution to Database
+            log_scraper_execution(
+                db=self.db,
+                scraper_name=source['name'].lower(),
+                status="SUCCESS" if failed_count == 0 else ("PARTIAL" if success_count > 0 else "FAILED"),
+                total_found=len(campaigns),
+                total_saved=success_count,
+                total_skipped=skipped_count,
+                total_failed=failed_count
+            )
             
         except Exception as e:
             print(f"   ❌ Source Error: {e}")
             import traceback
+            error_details = {"traceback": traceback.format_exc(), "error": str(e)}
+            log_scraper_execution(
+                db=self.db,
+                scraper_name=source['name'].lower(),
+                status="FAILED",
+                error_details=error_details
+            )
             traceback.print_exc()
 
     def _fetch_campaigns(self, source: Dict) -> List[Dict]:
@@ -305,8 +324,8 @@ class ParafScraper:
         """Get or create card, but only for known Paraf variants."""
         name_lower = name.lower()
         
-        # Hardcoded mapping to prevent AI from creating variants like "Paraf Gold", "Paraf Platinum" etc.
-        if "fly" in name_lower:
+        # Prevent AI from creating variants like "Paraf Gold", "Paraf Platinum" etc.
+        if "parafly" in name_lower or "fly" in name_lower:
             name = "Parafly"
         elif "troy" in name_lower:
             name = "Paraf TROY"
@@ -346,17 +365,32 @@ class ParafScraper:
         return self.sector_cache.get("diğer")
 
     def _get_or_create_brands(self, names: List[str], sector_id: int) -> List[int]:
+        from sqlalchemy.exc import IntegrityError
         ids = []
         for n in names:
             key = n.lower()
+            slug_val = key.replace(" ", "-")
             if key in self.brand_cache:
                 ids.append(self.brand_cache[key].id)
             else:
-                b = Brand(name=n, slug=key.replace(" ", "-"), is_active=True)
+                existing = self.db.query(Brand).filter(Brand.slug == slug_val).first()
+                if existing:
+                    self.brand_cache[key] = existing
+                    ids.append(existing.id)
+                    continue
+                    
+                b = Brand(name=n, slug=slug_val, is_active=True)
                 self.db.add(b)
-                self.db.commit()
-                self.brand_cache[key] = b
-                ids.append(b.id)
+                try:
+                    self.db.commit()
+                    self.brand_cache[key] = b
+                    ids.append(b.id)
+                except IntegrityError:
+                    self.db.rollback()
+                    existing = self.db.query(Brand).filter(Brand.slug == slug_val).first()
+                    if existing:
+                        self.brand_cache[key] = existing
+                        ids.append(existing.id)
         return ids
 
 if __name__ == "__main__":

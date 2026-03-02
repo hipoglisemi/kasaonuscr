@@ -4,7 +4,7 @@ Complete implementation of all tables and columns
 """
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Date, Numeric, Text,
-    ForeignKey, Index, ARRAY
+    ForeignKey, Index, ARRAY, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -249,4 +249,25 @@ class MissingSearch(Base):
     # Indexes
     __table_args__ = (
         Index("ix_missing_searches_query", "query"),
+    )
+
+class ScraperLog(Base):
+    """Execution logs for scrapers"""
+    __tablename__ = "scraper_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scraper_name = Column(String, nullable=False)
+    status = Column(String, nullable=False) # SUCCESS, FAILED, PARTIAL
+    total_found = Column(Integer, default=0, nullable=False)
+    total_saved = Column(Integer, default=0, nullable=False)
+    total_skipped = Column(Integer, default=0, nullable=False)
+    total_failed = Column(Integer, default=0, nullable=False)
+    error_log = Column(JSON, nullable=True) # Needs sqlalchemy.JSON
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    # Indexes
+    __table_args__ = (
+        Index("ix_scraper_logs_name", "scraper_name"),
+        Index("ix_scraper_logs_status", "status"),
+        Index("ix_scraper_logs_created_at", "created_at"),
     )
