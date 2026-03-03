@@ -277,7 +277,7 @@ class GarantiBonusScraper:
             # Get sector
             sector_id = None
             if ai_data.get('sector'):
-                sector = db.query(Sector).filter(Sector.name == ai_data['sector']).first()
+                sector = db.query(Sector).filter(Sector.slug == ai_data.get('sector', 'diger')).first()
                 if sector:
                     sector_id = sector.id
             

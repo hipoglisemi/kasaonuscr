@@ -225,7 +225,7 @@ class VakifbankScraper:
             ai_cat = ai_data.get("sector", "Diğer")
             db_sector_name = cat_map.get(ai_cat, "Diğer")
             
-            sector = self.db.query(Sector).filter(Sector.name == db_sector_name).first()
+            sector = self.db.query(Sector).filter(Sector.slug == db_sector_name).first()
             if not sector: sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
             
             # Generate Unique Slug

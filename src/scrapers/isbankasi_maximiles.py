@@ -579,7 +579,7 @@ class IsbankMaximilesScraper:
             formatted_title = self._to_title_case(raw_title)
             slug = self._get_or_create_slug(formatted_title)
             ai_cat = ai_data.get("sector", "Diğer")
-            sector = self.db.query(Sector).filter(Sector.name == SECTOR_MAP.get(ai_cat, "Diğer")).first()
+            sector = self.db.query(Sector).filter(Sector.slug == ai_cat).first()
             if not sector:
                 sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
 

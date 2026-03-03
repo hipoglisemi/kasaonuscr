@@ -505,8 +505,33 @@ Bugünün tarihi: {current_date} (Yıl: {datetime.now().year})
 {title_instruction}
 
 VALID- SECTOR:
-    Pick ONE matching sector from this exact list:
-    ['Market & Gıda', 'Akaryakıt', 'Giyim & Aksesuar', 'Restoran & Kafe', 'Elektronik', 'Mobilya & Dekorasyon', 'Kozmetik & Sağlık', 'E-Ticaret', 'Ulaşım', 'Dijital Platform', 'Kültür & Sanat', 'Eğitim', 'Sigorta', 'Otomotiv', 'Vergi & Kamu', 'Turizm & Konaklama', 'Kuyum, Optik ve Saat', 'Fatura & Telekomünikasyon', 'Anne, Bebek & Oyuncak', 'Kitap, Kırtasiye & Ofis', 'Evcil Hayvan & Petshop', 'Hizmet & Bireysel Gelişim', 'Finans & Yatırım', 'Diğer']
+    Pick ONE matching sector from this exact dictionary and output ONLY its SLUG:
+    {{
+        "Market & Gıda": "market-gida",
+        "Akaryakıt": "akaryakit",
+        "Giyim & Aksesuar": "giyim-aksesuar",
+        "Restoran & Kafe": "restoran-kafe",
+        "Elektronik": "elektronik",
+        "Mobilya, Dekorasyon & Yapı Market": "mobilya-dekorasyon",
+        "Sağlık, Kozmetik & Kişisel Bakım": "kozmetik-saglik",
+        "E-Ticaret": "e-ticaret",
+        "Ulaşım": "ulasim",
+        "Dijital Platform & Oyun": "dijital-platform",
+        "Spor, Kültür & Eğlence": "kultur-sanat",
+        "Eğitim": "egitim",
+        "Sigorta": "sigorta",
+        "Otomotiv": "otomotiv",
+        "Vergi & Kamu": "vergi-kamu",
+        "Turizm, Konaklama & Seyahat": "turizm-konaklama",
+        "Mücevherat, Optik & Saat": "kuyum-optik-ve-saat",
+        "Fatura & Telekomünikasyon": "fatura-telekomunikasyon",
+        "Anne, Bebek & Oyuncak": "anne-bebek-oyuncak",
+        "Kitap, Kırtasiye & Ofis": "kitap-kirtasiye-ofis",
+        "Evcil Hayvan & Petshop": "evcil-hayvan-petshop",
+        "Hizmet & Bireysel Gelişim": "hizmet-bireysel-gelisim",
+        "Finans & Yatırım": "finans-yatirim",
+        "Diğer": "diger"
+    }}
     🚨 NOTE: If the campaign is about Sports, Matches, Football, Theatre, or Concerts (e.g., UEFA, Galatasaray, tiyatro, sinema), it MUST be categorized as 'Kültür & Sanat' or 'Eğlence', NOT 'Diğer'.
 
 ⭐⭐⭐ KRİTİK KURALLAR (DOKUNULMAZ) ⭐⭐⭐
@@ -560,7 +585,7 @@ JSON Formatı:
   "min_spend": 0.0,
   "start_date": "YYYY-MM-DD",
   "end_date": "YYYY-MM-DD",
-  "sector": "Sektör Adı",
+  "sector": "Sektör Slug'ı",
   "brands": ["Marka1", "Marka2"],
   "cards": ["Kart1", "Kart2"],
   "participation": "Katılım talimatı",

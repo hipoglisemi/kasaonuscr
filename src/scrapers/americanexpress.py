@@ -327,7 +327,7 @@ class AmericanExpressScraper:
         ai_sector_name = ai_data.get('sector')
         if isinstance(ai_sector_name, list):
              ai_sector_name = ai_sector_name[0] if ai_sector_name else 'Diğer'
-        sector_name = SECTOR_MAP.get(ai_sector_name, ai_sector_name) if ai_sector_name else 'Diğer'
+        sector_name = ai_sector_name if ai_sector_name else 'diger'
         sector = self._get_sector(sector_name)
 
         # ─── 5. Format Conditions & Insert Campaign ──────────────────────────────

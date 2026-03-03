@@ -470,8 +470,8 @@ class IsbankMaximumScraper:
             slug = self._get_or_create_slug(formatted_title)
 
             ai_cat = data.get("sector", "Diğer")
-            db_sector_name = SECTOR_MAP.get(ai_cat, "Diğer")
-            sector = self.session.query(Sector).filter(Sector.name == db_sector_name).first()
+            db_sector_name = ai_cat
+            sector = self.session.query(Sector).filter(Sector.slug == db_sector_name).first()
             if not sector:
                 sector = self.session.query(Sector).filter(Sector.slug == 'diger').first()
 

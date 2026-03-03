@@ -174,7 +174,7 @@ class AkbankBaseScraper:
 
             # Map sector from AI data
             sector_name = ai_data.get('sector', 'Diğer')
-            sector = db.query(Sector).filter(Sector.name == sector_name).first()
+            sector = db.query(Sector).filter(Sector.slug == sector_name).first()
             if not sector:
                 sector = db.query(Sector).filter(Sector.slug == 'diger').first()
 
