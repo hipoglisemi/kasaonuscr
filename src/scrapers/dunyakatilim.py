@@ -354,5 +354,5 @@ class DunyaKatilimScraper:
 
 if __name__ == "__main__":
     is_test = os.environ.get("TEST_MODE") == "1"
-    scraper = DunyaKatilimScraper(max_campaigns=999 if is_test else 3)
+    scraper = DunyaKatilimScraper(max_campaigns=999)
     scraper.run()
