@@ -88,12 +88,10 @@ BANK_RULES = {
 🚨 IS BANKASI/MAXIMUM/MAXIMİLES SPECIFIC RULES:
 - TERMINOLOGY: "Maxipuan" (Points) or "MaxiMil" (Miles).
 - ELIGIBLE CARDS (cards):
-    - 🚨 STRICT: Kural metninden ("Kampanyaya Dahil Olan Kartlar" veya "Geçerli Kartlar") SADECE açıkça belirtilen kart isimlerini çıkar.
-    - Sık geçen dahil kartlar: "Maximum Kart", "Maximiles", "Maximiles Black", "Maximum Genç", "Privia Black", "Bankamatik Kartları", "MaxiPara Kart".
-    - 🚨 KAPSAM: Eğer "Tüm İş Bankası kredi kartları" veya "Maximum özellikli kredi kartları" diyorsa, detayda ("Maximum Kart, Maximiles...") hangi ana kartlar sayılıyorsa onları ekle. Sayılmıyorsa "Maximum Kart" ve "Maximiles" ekle.
-    - 🚨 HARİÇ KARTLAR (EXCLUSIONS): "Kampanyaya Dahil Olmayan Kartlar" veya "... hariçtir" ibaresine ÇOK DİKKAT ET.
-    - Ticari kartlar genellikle "Ticari Kredi Kartları", "Şirket Kredi Kartı", "İmece Kart", "Bayi Kart" isimleriyle geçer ve genelde HARİÇTİR. Hariçse listeye EKLEME. Dahilse listeye ["Maximum Ticari Kart", "İmece Kart"] şeklinde ekle.
-    - "Aidatsız Kartlar" veya "Maximum Fırsat" bazen hariç tutulur.
+    - 🚨 BASİT VE NET OL: Kampanya sitesindeki "Kampanyaya dâhil olan kartlar" veya "Geçerli Kartlar" kısmında ne yazıyorsa DİREKT ONU YAZ.
+    - Örnek: "Bankamatik Kartı, İş Bankası Maximum özellikli kredi kartları (Maximum, Maximiles, Maximiles Black, MercedesCard, İş’te Üniversiteli, Maximum Pati Kart, Maximum Genç)" yazıyorsa AYNEN AL.
+    - Sadece "ek kartlar, sanal kartlar, ticari kartlar" gibi genel ibareleri "Ek Kartlar", "Sanal Kartlar", "Ticari Kredi Kartları" şeklinde özetleyip listeye ekleyebilirsin.
+    - ❌ KESİN YASAK: Fibabanka, Ziraat gibi diğer banka kartlarını ASLA YAZMA. Sadece İş Bankası kartlarını listele.
 - PARTICIPATION (katilim_sekli):
     - 🚨 PRIORITY ORDER:
       1. Primary App: Look for "Katıl" button in "Maximum Mobil", "İşCep" or "Pazarama". → Extract as "Maximum Mobil, İşCep veya Pazarama'dan katılabilirsiniz."
