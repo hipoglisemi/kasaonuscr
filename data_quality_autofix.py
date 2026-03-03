@@ -22,7 +22,32 @@ from src.models import Campaign, Sector, Brand, CampaignBrand
 from src.database import get_db_session
 from src.services.ai_parser import parse_campaign_data
 
-
+SECTOR_MAP = {
+    "Market & Gıda": "market-gida",
+    "Akaryakıt": "akaryakit",
+    "Giyim & Aksesuar": "giyim-aksesuar",
+    "Restoran & Kafe": "restoran-kafe",
+    "Elektronik": "elektronik",
+    "Mobilya, Dekorasyon & Yapı Market": "mobilya-dekorasyon",
+    "Sağlık, Kozmetik & Kişisel Bakım": "kozmetik-saglik",
+    "E-Ticaret": "e-ticaret",
+    "Ulaşım": "ulasim",
+    "Dijital Platform & Oyun": "dijital-platform",
+    "Spor, Kültür & Eğlence": "kultur-sanat",
+    "Eğitim": "egitim",
+    "Sigorta": "sigorta",
+    "Otomotiv": "otomotiv",
+    "Vergi & Kamu": "vergi-kamu",
+    "Turizm, Konaklama & Seyahat": "turizm-konaklama",
+    "Mücevherat, Optik & Saat": "kuyum-optik-ve-saat",
+    "Fatura & Telekomünikasyon": "fatura-telekomunikasyon",
+    "Anne, Bebek & Oyuncak": "anne-bebek-oyuncak",
+    "Kitap, Kırtasiye & Ofis": "kitap-kirtasiye-ofis",
+    "Evcil Hayvan & Petshop": "evcil-hayvan-petshop",
+    "Hizmet & Bireysel Gelişim": "hizmet-bireysel-gelisim",
+    "Finans & Yatırım": "finans-yatirim",
+    "Diğer": "diger"
+}
 
 def fetch_html(url: str) -> str:
     """Attempts to fetch the HTML content of a URL."""
@@ -84,13 +109,17 @@ def run_autofix():
                     is_defective = True
                     reasons.append("Missing Conditions")
 
-                # Sektör kontrolü: boş veya Diğer
+                # Sektör kontrolü: boş, Diğer veya güncel 24 sektör harici
+                valid_slugs = set(SECTOR_MAP.values())
                 if not c.sector_id:
                     is_defective = True
                     reasons.append("Missing Sector")
-                elif c.sector and c.sector.name == "Diğer":
+                elif c.sector and c.sector.slug == "diger":
                     is_defective = True
                     reasons.append("Sector=Diğer (needs reclassification)")
+                elif c.sector and c.sector.slug not in valid_slugs:
+                    is_defective = True
+                    reasons.append(f"Deprecated Sector ({c.sector.slug})")
 
                 # Marka kontrolü: campaign_brands boş
                 if not c.brands:
@@ -199,16 +228,22 @@ def run_autofix():
                         updated = True
 
                 # --- Sektör tamiri ---
-                ai_sector_slug = ai_data.get("sector", "diger")
-                if isinstance(ai_sector_slug, list):
-                    ai_sector_slug = ai_sector_slug[0] if len(ai_sector_slug) > 0 else "diger"
+                ai_sector_raw = ai_data.get("sector", "diger")
+                if isinstance(ai_sector_raw, list):
+                    ai_sector_raw = ai_sector_raw[0] if len(ai_sector_raw) > 0 else "diger"
+                
+                # Try to map if AI returned a display name, otherwise assume it's a slug
+                final_sector_slug = SECTOR_MAP.get(ai_sector_raw, ai_sector_raw)
+                
+                if final_sector_slug not in SECTOR_MAP.values():
+                    final_sector_slug = "diger"
                     
                 needs_sector_fix = (
                     not c.sector_id or
-                    (c.sector and c.sector.slug == "diger" and ai_sector_slug != "diger")
+                    (c.sector and c.sector.slug != final_sector_slug)
                 )
-                if needs_sector_fix and ai_sector_slug != "diger":
-                    sector = db.query(Sector).filter(Sector.slug == ai_sector_slug).first()
+                if needs_sector_fix and final_sector_slug != "diger":
+                    sector = db.query(Sector).filter(Sector.slug == final_sector_slug).first()
                     if not sector:
                         sector = db.query(Sector).filter(Sector.slug == 'diger').first()
                     if sector:
