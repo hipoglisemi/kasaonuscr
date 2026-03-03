@@ -3,7 +3,8 @@ Database connection and session management for Kartavantaj scraper
 """
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, event
 from dotenv import load_dotenv
 import os
 
@@ -26,6 +27,14 @@ engine = create_engine(
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@event.listens_for(Session, "do_orm_execute")
+def _block_campaign_delete(execute_state):
+    if execute_state.is_delete and getattr(execute_state.bind_mapper, 'class_', None):
+        class_name = execute_state.bind_mapper.class_.__name__
+        if class_name == 'Campaign':
+            if os.getenv("ALLOW_CAMPAIGN_DELETE") != "1":
+                raise Exception("CRITICAL SAFETY LOCK: Deleting Campaigns via SQLAlchemy bulk operations is disabled to prevent accidental data loss. Use ALLOW_CAMPAIGN_DELETE=1 in your environment variables to override.")
 
 # Base class for all models
 Base = declarative_base()
