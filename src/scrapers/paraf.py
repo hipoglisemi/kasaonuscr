@@ -228,7 +228,9 @@ class ParafScraper:
         if not target_cards:
             target_cards = [card_name]
         
-        primary_card = self._get_or_create_card(target_cards[0])
+        # Bütün Parafly kampanyalarının Paraf'a kaymasını engellemek için AI'ın bulduğu ilk kart yerine, 
+        # scraper'ın çalıştığı asıl kaynağın adını (Paraf veya Parafly) baz alıyoruz.
+        primary_card = self._get_or_create_card(card_name)
         
         # Sector
         sector = self._get_sector(data.get("sector"))
