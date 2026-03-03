@@ -7,8 +7,8 @@ import uuid
 import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from urllib.parse import urljoin
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 # Path setup - same as ziraat.py
 current_dir = os.path.dirname(os.path.abspath(__file__))  # src/scrapers
@@ -22,6 +22,8 @@ if src_dir not in sys.path:
 
 print(f"[DEBUG] project_root: {project_root}")
 print(f"[DEBUG] sys.path[:3]: {sys.path[:3]}")
+
+from src.utils.logger_utils import log_scraper_execution
 
 # Load Env - same pattern as ziraat.py
 try:
@@ -148,7 +150,12 @@ class IsbankMaximumScraper:
             raise ValueError("DATABASE_URL is not set")
         self.engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
         Session = sessionmaker(bind=self.engine)
-        self.db = Session()
+        self.session = Session()
+        self.headers = {
+            'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
         # Lazy import of AIParser to avoid google.generativeai hanging at module import time
         try:
             from src.services.ai_parser import AIParser as _AIParser
@@ -163,14 +170,8 @@ class IsbankMaximumScraper:
         self.parser = _AIParser()
         print("[DEBUG] AIParser initialized")
 
-        self.page = None
-        self.browser = None
-        self.playwright = None
-        self._init_card()
-
-    def _init_card(self):
-        # Search with multiple slug/name variants
-        bank = self.db.query(Bank).filter(
+    def _get_or_create_bank(self) -> int:
+        bank = self.session.query(Bank).filter(
             Bank.slug.in_([
                 'i-sbankasi',   # gerçek DB slug
                 'isbank',       # seed.ts slug
@@ -178,144 +179,60 @@ class IsbankMaximumScraper:
             ])
         ).first()
         if not bank:
-            bank = self.db.query(Bank).filter(
+            bank = self.session.query(Bank).filter(
                 Bank.name.ilike('%İş Bank%') | Bank.name.ilike('%İşbank%')
             ).first()
         if not bank:
-            print(f"⚠️  İşbankası not found in DB, creating...")
-            bank = Bank(name='İş Bankası', slug='isbank')
-            self.db.add(bank)
-            self.db.commit()
+            print(f"⚠️  {self.BANK_NAME} not found in DB, creating...")
+            bank = Bank(name=self.BANK_NAME, slug='isbank')
+            self.session.add(bank)
+            self.session.commit()
+        return bank.id
 
-        print(f"✅ Bank: {bank.name} (ID: {bank.id}, slug: {bank.slug})")
-
-        card = self.db.query(Card).filter(
+    def _get_or_create_card(self, bank_id: int) -> int:
+        card = self.session.query(Card).filter(
             Card.slug.in_([
                 'maximum-card', 'maximum', 'isbank-maximum',
                 'isbankasi-maximum', 'maximumcard',
             ])
         ).first()
         if not card:
-            card = self.db.query(Card).filter(
+            card = self.session.query(Card).filter(
                 Card.name.ilike('%Maximum%'),
-                Card.bank_id == bank.id
+                Card.bank_id == bank_id
             ).first()
         if not card:
             print(f"⚠️  Card 'maximum-card' not found, creating...")
-            card = Card(bank_id=bank.id, name='Maximum Card', slug='maximum-card', is_active=True)
-            self.db.add(card)
-            self.db.commit()
-
-        self.card_id = card.id
-        print(f"✅ Card: {card.name} (ID: {self.card_id}, slug: {card.slug})")
-
-
-    def _start_browser(self):
-        from playwright.sync_api import sync_playwright
-        self.playwright = sync_playwright().start()
-        
-        is_ci = os.getenv("GITHUB_ACTIONS") == "true" or os.getenv("CI") == "true"
-        connected = False
-
-        if not is_ci:
-            try:
-                print("   🔌 Attempting to connect to local Chrome debug instance at http://localhost:9222...")
-                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
-                connected = True
-                print("   ✅ Connected to local existing Chrome instance")
-                
-                # Use existing context if available
-                if len(self.browser.contexts) > 0:
-                    context = self.browser.contexts[0]
-                else:
-                    context = self.browser.new_context()
-                    
-                self.page = context.new_page()
-                self.page.set_default_timeout(120000)
-                return
-            except Exception as e:
-                print(f"   ⚠️  Could not connect to debug Chrome, launching headless... ({e})")
-                
-        if not connected:
-            self.browser = self.playwright.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox", "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage", "--disable-gpu",
-                    "--window-size=1920,1080",
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-extensions",
-                    "--disable-web-security",
-                ]
-            )
-            context = self.browser.new_context(
-                viewport={"width": 1920, "height": 1080},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                locale="tr-TR",
-                timezone_id="Europe/Istanbul",
-                extra_http_headers={
-                    "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                }
-            )
-            # Disable navigator.webdriver flag
-            context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            self.page = context.new_page()
-            self.page.set_default_timeout(120000)
-            print("✅ Playwright browser started.")
-
-    def _stop_browser(self):
-        try:
-            if self.browser:
-                self.browser.close()
-            if self.playwright:
-                self.playwright.stop()
-        except Exception:
-            pass
+            card = Card(bank_id=bank_id, name='Maximum Card', slug='maximum-card', is_active=True)
+            self.session.add(card)
+            self.session.commit()
+        return card.id
 
     def _fetch_campaign_urls(self, limit: Optional[int] = None) -> tuple[List[str], List[str]]:
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL}...")
-        for attempt, wait in enumerate(["domcontentloaded", "commit", "load"]):
-            try:
-                print(f"   🔄 Attempt {attempt+1}/3 (wait_until={wait})...")
-                self.page.goto(self.CAMPAIGNS_URL, wait_until=wait, timeout=120000)
-                print(f"   ✅ Page loaded ({wait})")
-                break
-            except Exception as e:
-                print(f"   ⚠️ Attempt {attempt+1} failed: {e}")
-                if attempt == 2:
-                    print("   ❌ All attempts failed, continuing with current page state")
-        time.sleep(5)
-
-
-        scroll_count = 0
-        while True:
-            soup = BeautifulSoup(self.page.content(), "html.parser")
-            current = len([
-                a for a in soup.find_all("a", href=True)
-                if "/kampanyalar/" in a["href"] and "arsiv" not in a["href"]
-                and "gecmis" not in a["href"] and len(a["href"]) > 20
-            ])
-            if limit and current >= limit:
-                break
-
-            btn = self.page.query_selector("a.CampAllShow")
-            if btn and btn.is_visible():
-                btn.scroll_into_view_if_needed()
-                time.sleep(1)
-                btn.click()
-                time.sleep(2.5)
-                scroll_count += 1
-                print(f"   ⏬ Loaded more campaigns (round {scroll_count})...")
-            else:
-                print("   ℹ️ No more 'Load More' button.")
-                break
-
-            if scroll_count > 50:
-                break
-
-        soup = BeautifulSoup(self.page.content(), "html.parser")
         
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        # We fetch the first page. Maximum usually loads a bunch of HTML blocks, and potentially has a load-more API.
+        # But for simplification and immediate WAF bypass, we fetch the main HTML.
+        all_campaign_links = []
+        try:
+            response = requests.get(self.CAMPAIGNS_URL, headers=self.headers, verify=False, timeout=20)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # Extract links
+            links = soup.find_all("a", href=True)
+            for a in links:
+                if "/kampanyalar/" in a["href"] and "arsiv" not in a["href"] and "gecmis" not in a["href"] and len(a["href"]) > 20:
+                    all_campaign_links.append(a)
+                    
+        except Exception as e:
+            print(f"   ❌ Failed to fetch campaign list: {e}")
+            return [], []
+
         excluded_suffixes = [
             "-kampanyalari",
             "-kampanyalar",
@@ -343,40 +260,37 @@ class IsbankMaximumScraper:
             "/kampanyalar/arac-kiralama",
             "/kampanyalar/bankamatik",
             "bireysel", "ticari", "diger-kampanyalar",
-            "movenpick", "arsivi", "ozel-bankacilik"
+            "movenpick", "arsivi", "ozel-bankacilik",
+            "/kampanyalar/arsiv",
+            "/kampanyalar/yurtdisi"
         ]
 
-        all_links = []
-        expired_links = []
-        for a in soup.find_all("a", href=True):
-            href = a["href"].lower()
-            
-            if (
-                ("/kampanyalar/" in href or "kampanyalar/" in href)
-                and "arsiv" not in href
-                and "gecmis" not in href
-                and "past" not in href
-            ):
-                is_exact_category = any(href.endswith(path) for path in excluded_paths)
-                is_category_suffix = any(href.endswith(suffix) for suffix in excluded_suffixes)
-                is_common_page = "ozellikler" in href or "basvuru" in href or href.endswith("/kampanyalar")
-                
-                if not is_exact_category and not is_category_suffix and not is_common_page and len(href) > 25:
-                    full_url = urljoin(self.BASE_URL, a["href"])
-                    
-                    # Sona ermiş kampanya tespiti
-                    parent_text = ""
-                    parent = a.find_parent("div", class_="card") or a.find_parent("div", class_="campaign-card") or a.find_parent("div", class_="opportunity-result") or a.parent
-                    if parent:
-                        parent_text = parent.get_text(separator=" ", strip=True).lower()
-                        
-                    if "sona ermiştir" in parent_text or "bitmiştir" in parent_text or "sona erdi" in parent_text or "süresi doldu" in parent_text:
-                        expired_links.append(full_url)
-                    else:
-                        all_links.append(full_url)
+        unique_urls = []
+        unique_expired = []
+        seen = set()
 
-        unique_urls = list(dict.fromkeys(all_links))
-        unique_expired = list(dict.fromkeys(expired_links))
+        for a in all_campaign_links:
+            href = a["href"]
+            
+            if href in excluded_paths: continue
+            if any(href.endswith(s) for s in excluded_suffixes): continue
+            
+            full_url = urljoin(self.BASE_URL, href)
+            if full_url in seen: continue
+            seen.add(full_url)
+            
+            # Check for expired status based on class or text
+            parent_text = ""
+            parent = a.find_parent("div", class_="card") or a.find_parent("div", class_="campaign-card") or a.find_parent("div", class_="opportunity-result") or a.parent
+            if parent:
+                parent_text = parent.get_text(separator=" ", strip=True).lower()
+
+            if a.find(class_="expired") or "gecmis" in href or "geçmiş" in a.text.lower() or \
+               "sona ermiştir" in parent_text or "bitmiştir" in parent_text or "sona erdi" in parent_text or "süresi doldu" in parent_text:
+                unique_expired.append(full_url)
+            else:
+                unique_urls.append(full_url)
+                
         if limit:
             unique_urls = unique_urls[:limit]
 
@@ -386,46 +300,33 @@ class IsbankMaximumScraper:
     def _extract_campaign_data(self, url: str) -> Optional[Dict[str, Any]]:
         try:
             success = False
+            html_content = ""
             for attempt in range(3):
                 try:
-                    # Close existing page if we are in a loop, create a fresh one to avoid connection tracking
-                    try:
-                        if self.page:
-                            self.page.close()
-                    except Exception:
-                        pass
-                    
-                    time.sleep(3) # mandatory anti-bot delay
-                    
-                    if len(self.browser.contexts) > 0:
-                        self.page = self.browser.contexts[0].new_page()
-                    else:
-                        context = self.browser.new_context(
-                            viewport={"width": 1920, "height": 1080},
-                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                            locale="tr-TR",
-                        )
-                        context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-                        self.page = context.new_page()
-                        
-                    self.page.set_default_timeout(120000)
-                    
-                    self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                    time.sleep(2) # let the page settle
+                    import requests
+                    time.sleep(1.5 + attempt) # modest delay
+                    response = requests.get(
+                        url, 
+                        headers=self.headers,
+                        timeout=15,
+                        verify=False # avoid SSL certificate verify errors just in case
+                    )
+                    response.raise_for_status()
+                    html_content = response.text
                     success = True
                     break
                 except Exception as e:
-                    print(f"      ⚠️ Detail load attempt {attempt+1}/3 failed: {e}. Retrying...")
-                    time.sleep(5 + attempt * 3)
+                    print(f"      ⚠️ Detail load attempt {attempt+1}/3 failed (requests): {e}. Retrying...")
+                    time.sleep(3 + attempt * 2)
             
             if not success:
                 print(f"      ❌ Could not load detail page after 3 attempts: {url}")
                 return None
                 
-            self.page.evaluate("window.scrollTo(0, 600)")
-            time.sleep(1.5)
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-            soup = BeautifulSoup(self.page.content(), "html.parser")
+            soup = BeautifulSoup(html_content, "html.parser")
             title_el = soup.select_one("h1.gradient-title-text") or soup.find("h1")
             title = self._clean(title_el.text) if title_el else "Başlık Yok"
 
@@ -455,7 +356,7 @@ class IsbankMaximumScraper:
             end_iso = self._parse_date(date_text, is_end=True)
             if end_iso:
                 try:
-                    if datetime.strptime(end_iso, "%Y-%m-%d") < datetime.now():
+                    if datetime.strptime(end_iso, "%Y-%m-%d").date() < datetime.now().date():
                         return None
                 except Exception:
                     pass
@@ -496,6 +397,7 @@ class IsbankMaximumScraper:
                 "title": title, "image_url": image_url,
                 "date_text": date_text, "full_text": full_text,
                 "conditions": conditions, "source_url": url,
+                "raw_text": html_content # For AI parsing
             }
         except Exception as e:
             print(f"   ⚠️ Error extracting {url}: {e}")
@@ -562,206 +464,213 @@ class IsbankMaximumScraper:
         )).strip('-')
         slug = base
         counter = 1
-        while self.db.query(Campaign).filter(Campaign.slug == slug).first():
+        while self.session.query(Campaign).filter(Campaign.slug == slug).first():
             slug = f"{base}-{counter}"
             counter += 1
         return slug
 
-    def _process_campaign(self, url: str) -> str:
-        existing = self.db.query(Campaign).filter(
-            Campaign.tracking_url == url,
-            Campaign.card_id == self.card_id
-        ).first()
-        if existing:
-            print(f"   ⏭️  Skipped (Already exists)")
-            return "skipped"
-
-        print(f"🔍 Processing: {url}")
-        data = self._extract_campaign_data(url)
-        if not data:
-            print("   ⏭️  Skipped (expired/invalid)")
-            return "skipped"
-
+    def _save_campaign(self, data: Dict[str, Any], bank_id: int, card_id: int) -> Optional[int]:
         try:
-            ai_data = self.parser.parse_campaign_data(
-                raw_text=data["full_text"],
-                bank_name=self.BANK_NAME,
-                title=data["title"],
-            ) or {}
-        except Exception as e:
-            self.db.rollback()
-            print(f"   ⚠️ AI parse error: {e}")
-            ai_data = {}
-
-        try:
-            raw_title = ai_data.get("title") or data.get("title") or ""
+            raw_title = data.get("title") or ""
             formatted_title = self._to_title_case(raw_title)
             slug = self._get_or_create_slug(formatted_title)
 
-            ai_cat = ai_data.get("sector", "Diğer")
+            ai_cat = data.get("sector", "Diğer")
             db_sector_name = SECTOR_MAP.get(ai_cat, "Diğer")
-            sector = self.db.query(Sector).filter(Sector.name == db_sector_name).first()
+            sector = self.session.query(Sector).filter(Sector.name == db_sector_name).first()
             if not sector:
-                sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
+                sector = self.session.query(Sector).filter(Sector.slug == 'diger').first()
 
             start_date = None
             end_date = None
-            if ai_data.get("start_date"):
+            if data.get("start_date"):
                 try:
-                    start_date = datetime.strptime(ai_data["start_date"], "%Y-%m-%d")
+                    start_date = datetime.strptime(data["start_date"], "%Y-%m-%d").date()
                 except Exception:
                     pass
-            if ai_data.get("end_date"):
+            if data.get("end_date"):
                 try:
-                    end_date = datetime.strptime(ai_data["end_date"], "%Y-%m-%d")
+                    end_date = datetime.strptime(data["end_date"], "%Y-%m-%d").date()
                 except Exception:
                     pass
             if not start_date:
                 sd = self._parse_date(data["date_text"], is_end=False)
                 if sd:
                     try:
-                        start_date = datetime.strptime(sd, "%Y-%m-%d")
+                        start_date = datetime.strptime(sd, "%Y-%m-%d").date()
                     except Exception:
                         pass
             if not end_date:
                 ed = self._parse_date(data["date_text"], is_end=True)
                 if ed:
                     try:
-                        end_date = datetime.strptime(ed, "%Y-%m-%d")
+                        end_date = datetime.strptime(ed, "%Y-%m-%d").date()
                     except Exception:
                         pass
 
-            conds = ai_data.get("conditions", [])
-            part = ai_data.get("participation")
+            conds = data.get("conditions", [])
+            part = data.get("participation")
             if part and "Detayları İnceleyin" not in part:
                 conds.insert(0, f"KATILIM: {part}")
             final_conditions = "\n".join(conds)
 
-            eligible = ", ".join(ai_data.get("cards", [])) or None
+            eligible = ", ".join(data.get("cards", [])) or None
 
             campaign = Campaign(
-                card_id=self.card_id,
+                card_id=card_id,
                 sector_id=sector.id if sector else None,
                 slug=slug,
                 title=formatted_title,
-                description=ai_data.get("description") or data["title"][:200],
-                reward_text=ai_data.get("reward_text"),
-                reward_value=ai_data.get("reward_value"),
-                reward_type=ai_data.get("reward_type"),
+                description=data.get("description") or data["title"][:200],
+                reward_text=data.get("reward_text"),
+                reward_value=data.get("reward_value"),
+                reward_type=data.get("reward_type"),
                 conditions=final_conditions,
                 eligible_cards=eligible,
                 image_url=data["image_url"],
                 start_date=start_date,
                 end_date=end_date,
                 is_active=True,
-                tracking_url=url,
+                tracking_url=data["source_url"],
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )
-            self.db.add(campaign)
-            self.db.commit()
+            self.session.add(campaign)
+            self.session.commit()
 
             # Brands
-            for b_name in ai_data.get("brands", []):
+            for b_name in data.get("brands", []):
                 if len(b_name) < 2:
                     continue
                 b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
                 
                 try:
-                    brand = self.db.query(Brand).filter(
+                    brand = self.session.query(Brand).filter(
                         (Brand.slug == b_slug) | (Brand.name.ilike(b_name))
                     ).first()
                     if not brand:
                         brand = Brand(name=self._to_title_case(b_name), slug=b_slug)
-                        self.db.add(brand)
-                        self.db.commit()
+                        self.session.add(brand)
+                        self.session.commit()
                 except Exception as e:
-                    self.db.rollback()
+                    self.session.rollback()
                     print(f"   ⚠️ Brand save failed for {b_name}: {e}")
                     continue
 
                 try:    
-                    link = self.db.query(CampaignBrand).filter(
+                    link = self.session.query(CampaignBrand).filter(
                         CampaignBrand.campaign_id == campaign.id,
                         CampaignBrand.brand_id == brand.id
                     ).first()
                     if not link:
-                        self.db.add(CampaignBrand(campaign_id=campaign.id, brand_id=brand.id))
-                        self.db.commit()
+                        self.session.add(CampaignBrand(campaign_id=campaign.id, brand_id=brand.id))
+                        self.session.commit()
                 except Exception as e:
-                    self.db.rollback()
+                    self.session.rollback()
                     print(f"   ⚠️ CampaignBrand link failed: {e}")
                     continue
 
             print(f"   ✅ Saved: {campaign.title[:50]}")
-            return "saved"
+            return campaign.id
         except Exception as e:
-            self.db.rollback()
+            self.session.rollback()
             print(f"   ❌ Save failed: {e}")
             traceback.print_exc()
-            return "error"
+            return None
 
     def run(self, limit: Optional[int] = None):
+        """Main execution flow"""
+        global AIParser
+        if AIParser is None:
+            try:
+                from src.services.ai_parser import AIParser
+                print("[DEBUG] AIParser lazy-imported via src.services")
+            except ImportError:
+                print("[DEBUG] Absolute import failed, trying relative")
+                from services.ai_parser import AIParser
+        
+        bank_id = self._get_or_create_bank()
+        card_id = self._get_or_create_card(bank_id)
+
+        print(f"✅ Bank: {self.BANK_NAME} (ID: {bank_id}, slug: isbankasi)")
+        print(f"✅ Card: Maximum (ID: {card_id}, slug: {self.CARD_SLUG})")
+        print("🚀 Starting İşbankası Maximum Scraper (Requests)...")
+
         try:
-            print("🚀 Starting İşbankası Maximum Scraper (Playwright)...")
-            from src.utils.logger_utils import log_scraper_execution
-            self._start_browser()
-            
-            # Close DB session to prevent idle connection timeout during long Playwright scroll
-            if self.db:
-                self.db.commit()
-                self.db.close()
-                
-            active_urls, expired_urls = self._fetch_campaign_urls(limit=limit)
-            
+            urls, expired_urls = self._fetch_campaign_urls(limit=limit)
+
             # Evaluate expired campaigns logic
-            # Use a new short-lived session context for this specific update
-            with self.engine.connect() as conn:
-                from sqlalchemy.orm import Session as SASession
-                with SASession(bind=conn) as temp_db:
-                    if expired_urls:
-                        print(f"🛑 Found {len(expired_urls)} expired campaigns on list page. Checking DB for early end...")
-                        for e_url in expired_urls:
-                            try:
-                                existing = temp_db.query(Campaign).filter(
-                                    Campaign.tracking_url == e_url,
-                                    Campaign.card_id == self.card_id,
-                                    Campaign.is_active == True
-                                ).first()
-                                if existing:
-                                    print(f"   🛑 Desactivating expired campaign in DB: {existing.title}")
-                                    existing.is_active = False
-                                    temp_db.commit()
-                            except Exception as e:
-                                temp_db.rollback()
-                                print(f"   ⚠️ Could not update expired campaign {e_url}: {e}")
+            if expired_urls:
+                print(f"🛑 Found {len(expired_urls)} expired campaigns on list page. Checking DB for early end...")
+                for e_url in expired_urls:
+                    try:
+                        existing = self.session.query(Campaign).filter(
+                            Campaign.tracking_url == e_url,
+                            Campaign.card_id == card_id,
+                            Campaign.is_active == True
+                        ).first()
+                        if existing:
+                            print(f"   🛑 Deactivating expired campaign in DB: {existing.title}")
+                            existing.is_active = False
+                            self.session.commit()
+                    except Exception as e:
+                        self.session.rollback()
+                        print(f"   ⚠️ Could not update expired campaign {e_url}: {e}")
                         
-            urls = active_urls
-
-            # Reopen DB for main loop
-            Session = sessionmaker(bind=self.engine)
-            self.db = Session()
-
+            results = []
             success, skipped, failed = 0, 0, 0
             error_details = []
             
             for i, url in enumerate(urls, 1):
+                if limit and i > limit:
+                    break
+                    
                 print(f"\n[{i}/{len(urls)}]")
+                print(f"🔍 Processing: {url}")
+                
+                # DB Cache query
+                existing = self.session.query(Campaign).filter(
+                    Campaign.tracking_url == url,
+                    Campaign.card_id == card_id
+                ).first()
+                if existing:
+                    print(f"   ℹ️  Already exists in DB: [{existing.id}] {existing.title[:40]}")
+                    skipped += 1
+                    continue
+                    
                 try:
-                    res = self._process_campaign(url)
-                    if res == "saved":
-                        success += 1
-                    elif res == "skipped":
+                    res_data = self._extract_campaign_data(url)
+                    if not res_data:
                         skipped += 1
+                        continue
+                        
+                    try:
+                        ai_data = AIParser.parse_campaign_data(
+                            raw_text=res_data["raw_text"],
+                            title=res_data["title"],
+                            bank_name=self.BANK_NAME,
+                            card_name="Maximum Card"
+                        )
+                        if ai_data:
+                            print("   ✅ AI parsed successfully")
+                            res_data.update(ai_data)
+                    except Exception as ai_e:
+                        print(f"   ⚠️ AI parse error: {ai_e}")
+                        
+                    saved_id = self._save_campaign(res_data, bank_id, card_id)
+                    if saved_id:
+                        success += 1
+                        results.append(saved_id)
                     else:
                         failed += 1
-                        error_details.append({"url": url, "error": "Process campaign returned error string"})
+                        error_details.append({"url": url, "error": "Save returned None"})
+                        
                 except Exception as e:
-                    print(f"❌ Error: {e}")
-                    if self.db:
-                        self.db.rollback()
+                    print(f"❌ Error during details extraction: {e}")
+                    self.session.rollback()
                     failed += 1
                     error_details.append({"url": url, "error": str(e)})
+                
                 time.sleep(1.5)
 
             print(f"\n🏁 Finished. {len(urls)} found, {success} saved, {skipped} skipped, {failed} errors")
@@ -771,7 +680,7 @@ class IsbankMaximumScraper:
                 status = "PARTIAL" if (success > 0 or skipped > 0) else "FAILED"
                 
             log_scraper_execution(
-                db=self.db,
+                db=self.session,
                 scraper_name="isbankasi_maximum",
                 status=status,
                 total_found=len(urls),
@@ -787,7 +696,6 @@ class IsbankMaximumScraper:
             status = "FAILED"
             Session = sessionmaker(bind=self.engine)
             err_db = Session()
-            from src.utils.logger_utils import log_scraper_execution
             try:
                 log_scraper_execution(
                     db=err_db,
@@ -806,9 +714,7 @@ class IsbankMaximumScraper:
                 
             raise
         finally:
-            self._stop_browser()
-            if hasattr(self, 'db') and self.db:
-                self.db.close()
+            self.session.close()
 
 
 if __name__ == "__main__":
