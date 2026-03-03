@@ -388,12 +388,35 @@ class IsbankMaximumScraper:
             success = False
             for attempt in range(3):
                 try:
+                    # Close existing page if we are in a loop, create a fresh one to avoid connection tracking
+                    try:
+                        if self.page:
+                            self.page.close()
+                    except Exception:
+                        pass
+                    
+                    time.sleep(3) # mandatory anti-bot delay
+                    
+                    if len(self.browser.contexts) > 0:
+                        self.page = self.browser.contexts[0].new_page()
+                    else:
+                        context = self.browser.new_context(
+                            viewport={"width": 1920, "height": 1080},
+                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                            locale="tr-TR",
+                        )
+                        context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                        self.page = context.new_page()
+                        
+                    self.page.set_default_timeout(120000)
+                    
                     self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                    time.sleep(2) # let the page settle
                     success = True
                     break
                 except Exception as e:
                     print(f"      ⚠️ Detail load attempt {attempt+1}/3 failed: {e}. Retrying...")
-                    time.sleep(3 + attempt * 2)
+                    time.sleep(5 + attempt * 3)
             
             if not success:
                 print(f"      ❌ Could not load detail page after 3 attempts: {url}")
