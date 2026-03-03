@@ -320,6 +320,24 @@ BANK_RULES = {
 - PARTICIPATION:
     - Look for "Masterpass ile ödeme" or "Masterpass'e kayıtlı kartınızla".
     - Often requires clicking "Kupon Al". Write participation instructions exactly as described.
+    """,
+    "dunyakatilim": """
+🚨 DÜNYA KATILIM SPECIFIC RULES:
+- TERMINOLOGY: Rewards are often "İndirim", "Taksit", "Nakit İade" or physical rewards like "Altın". Write exactly what's offered (e.g., "Altın Hediye", "9 Ay Taksit", "%18 Nakit İade").
+    - 🚨 CRITICAL: `reward_text` alanı ASLA "Detayları İnceleyin" olmamalıdır. Başlıktan veya içerikten mutlak bir kampanya özeti çıkar.
+- SECTOR & BRANDS:
+    - 🚨 CRITICAL: If the campaign is about "Altın", "Fiziki Altın", "FX", or Foreign Exchange, classify it as "Kuyum, Optik ve Saat", NEVER "Hizmet".
+- ELIGIBLE CARDS:
+    - Often "Dünya Katılım Kartı", "DKart Debit" or "Dünya Katılım Ticari Kart". Extract the exact card name mentioned.
+- DATES:
+    - If the campaign doesn't explicitly mention an end date, or says something like "Süresiz", MUST return null for `end_date`. Do NOT invent 9999-12-31.
+    - If `end_date` is given or the campaign is clearly active but `start_date` is not mentioned, use `{current_date}` for `start_date`.
+- PARTICIPATION:
+    - 🚨 CRITICAL: Look very carefully for SMS instructions (e.g., "TROY boşluk ... yazarak 2345'e SMS gönderilmesi"). If present, extract the exact SMS text.
+    - If Mobile/Internet app check-in is required, mention it.
+    - If there are no specific participation steps mentioned, output "Otomatik Katılım".
+- CONDITIONS:
+    - Always generate at least 1-2 bullet points for conditions summarizing the title or text.
     """
 }
 

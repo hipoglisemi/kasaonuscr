@@ -1,3 +1,4 @@
+import os
 """
 SQLAlchemy models matching Prisma schema
 Complete implementation of all tables and columns
@@ -112,7 +113,7 @@ class Brand(Base):
 
 class Campaign(Base):
     """Campaign entity - stores credit card campaigns with all details"""
-    __tablename__ = "campaigns"
+    __tablename__ = "test_campaigns" if os.environ.get("TEST_MODE") == "1" else "campaigns"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     card_id = Column(Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False)
@@ -179,9 +180,9 @@ class Campaign(Base):
 
 class CampaignBrand(Base):
     """Many-to-many relationship between campaigns and brands"""
-    __tablename__ = "campaign_brands"
+    __tablename__ = "test_campaign_brands" if os.environ.get("TEST_MODE") == "1" else "campaign_brands"
 
-    campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    campaign_id = Column(Integer, ForeignKey("test_campaigns.id" if os.environ.get("TEST_MODE") == "1" else "campaigns.id", ondelete="CASCADE"), primary_key=True)
     brand_id = Column(UUID(as_uuid=True), ForeignKey("brands.id", ondelete="CASCADE"), primary_key=True)
 
     # Relationships
@@ -221,7 +222,7 @@ class SearchLog(Base):
     session_id = Column(UUID(as_uuid=True), ForeignKey("user_sessions.id", ondelete="SET NULL"), nullable=True)
     query = Column(String, nullable=False)
     result_count = Column(Integer, nullable=True)
-    clicked_campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True)
+    clicked_campaign_id = Column(Integer, ForeignKey("test_campaigns.id" if os.environ.get("TEST_MODE") == "1" else "campaigns.id", ondelete="SET NULL"), nullable=True)
     searched_at = Column(DateTime, default=func.now(), nullable=False)
 
     # Relationships
@@ -271,3 +272,5 @@ class ScraperLog(Base):
         Index("ix_scraper_logs_status", "status"),
         Index("ix_scraper_logs_created_at", "created_at"),
     )
+
+

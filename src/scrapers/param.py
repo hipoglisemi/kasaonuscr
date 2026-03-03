@@ -72,14 +72,14 @@ class Brand(Base):
     campaigns = relationship("CampaignBrand", back_populates="brand")
 
 class CampaignBrand(Base):
-    __tablename__ = 'campaign_brands'
+    __tablename__ = 'test_campaign_brands' if os.environ.get('TEST_MODE') == '1' else 'campaign_brands'
     campaign_id = Column(Integer, ForeignKey('campaigns.id'), primary_key=True)
     brand_id = Column(UUID(as_uuid=True), ForeignKey('brands.id'), primary_key=True)
     brand = relationship("Brand", back_populates="campaigns")
     campaign = relationship("Campaign", back_populates="brands")
 
 class Campaign(Base):
-    __tablename__ = 'campaigns'
+    __tablename__ = 'test_campaigns' if os.environ.get('TEST_MODE') == '1' else 'campaigns'
     id = Column(Integer, primary_key=True)
     card_id = Column(Integer, ForeignKey('cards.id'))
     sector_id = Column(Integer, ForeignKey('sectors.id'))
