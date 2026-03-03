@@ -186,7 +186,7 @@ class AmericanExpressScraper:
 
             log_scraper_execution(
                 db=self.db,
-                scraper_name="american_express",
+                scraper_name="americanexpress",
                 status="SUCCESS" if self.stats["failed"] == 0 else "PARTIAL",
                 total_found=self.stats["found"],
                 total_saved=self.stats["saved"],
@@ -200,7 +200,7 @@ class AmericanExpressScraper:
             print(f"Fatal error during American Express scraping:\n{error_msg}")
             log_scraper_execution(
                 db=self.db,
-                scraper_name="american_express",
+                scraper_name="americanexpress",
                 status="FAILED",
                 total_found=self.stats["found"],
                 total_saved=self.stats["saved"],
