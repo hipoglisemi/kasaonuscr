@@ -128,8 +128,15 @@ def run_autofix():
             fixed_count = 0
             
             for item in to_fix:
-                c = item["campaign"]
+                c_id = item["campaign"].id
                 reasons = ", ".join(item["reasons"])
+                
+                # Re-fetch campaign to avoid ObjectDeletedError or DetachedInstanceError across rollbacks
+                c = db.query(Campaign).get(c_id)
+                if not c:
+                    print(f"\n🛠️ Skipping: [{c_id}] (Campaign no longer in DB)")
+                    continue
+                    
                 print(f"\n🛠️ Fixing: [{c.id}] {c.title[:40]}... (Reasons: {reasons})")
                 print(f"   🔗 URL: {c.tracking_url}")
                 
