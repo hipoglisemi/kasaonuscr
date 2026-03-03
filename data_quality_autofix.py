@@ -22,26 +22,7 @@ from src.models import Campaign, Sector, Brand, CampaignBrand
 from src.database import get_db_session
 from src.services.ai_parser import parse_campaign_data
 
-SECTOR_MAP = {
-    "Market & Gıda": "Market",
-    "Giyim & Aksesuar": "Giyim",
-    "Restoran & Kafe": "Restoran & Kafe",
-    "Turizm & Konaklama": "Seyahat",
-    "Elektronik": "Elektronik",
-    "Mobilya & Dekorasyon": "Mobilya & Dekorasyon",
-    "Kozmetik & Sağlık": "Kozmetik & Sağlık",
-    "E-Ticaret": "E-Ticaret",
-    "Ulaşım": "Ulaşım",
-    "Dijital Platform": "Dijital Platform",
-    "Kültür & Sanat": "Kültür & Sanat",
-    "Eğitim": "Eğitim",
-    "Sigorta": "Sigorta",
-    "Otomotiv": "Otomotiv",
-    "Vergi & Kamu": "Vergi & Kamu",
-    "Kuyum, Optik ve Saat": "Kuyum, Optik ve Saat",
-    "Akaryakıt": "Akaryakıt",
-    "Diğer": "Diğer",
-}
+
 
 def fetch_html(url: str) -> str:
     """Attempts to fetch the HTML content of a URL."""
@@ -218,18 +199,16 @@ def run_autofix():
                         updated = True
 
                 # --- Sektör tamiri ---
-                ai_sector_name = ai_data.get("sector", "Diğer")
-                # AI sometimes returns a list for the sector (e.g. ["Market"]) instead of a string
-                if isinstance(ai_sector_name, list):
-                    ai_sector_name = ai_sector_name[0] if len(ai_sector_name) > 0 else "Diğer"
+                ai_sector_slug = ai_data.get("sector", "diger")
+                if isinstance(ai_sector_slug, list):
+                    ai_sector_slug = ai_sector_slug[0] if len(ai_sector_slug) > 0 else "diger"
                     
-                db_sector_name = SECTOR_MAP.get(ai_sector_name, "Diğer")
                 needs_sector_fix = (
                     not c.sector_id or
-                    (c.sector and c.sector.name == "Diğer" and db_sector_name != "Diğer")
+                    (c.sector and c.sector.slug == "diger" and ai_sector_slug != "diger")
                 )
-                if needs_sector_fix and db_sector_name != "Diğer":
-                    sector = db.query(Sector).filter(Sector.name == db_sector_name).first()
+                if needs_sector_fix and ai_sector_slug != "diger":
+                    sector = db.query(Sector).filter(Sector.slug == ai_sector_slug).first()
                     if not sector:
                         sector = db.query(Sector).filter(Sector.slug == 'diger').first()
                     if sector:

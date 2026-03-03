@@ -87,12 +87,16 @@ BANK_RULES = {
     'işbankası': """
 🚨 IS BANKASI/MAXIMUM/MAXIMİLES SPECIFIC RULES:
 - TERMINOLOGY: "Maxipuan" (Points) or "MaxiMil" (Miles).
-- ELIGIBLE CARDS:
-    - Keywords: "Maximum Kart", "Maximum Gold", "Maximum Platinum", "Maximiles", "Privia", "İş Bankası Bankamatik Kartı".
-    - "Ticari" means "Maximum Ticari".
+- ELIGIBLE CARDS (cards):
+    - 🚨 STRICT: Kural metninden ("Kampanyaya Dahil Olan Kartlar" veya "Geçerli Kartlar") SADECE açıkça belirtilen kart isimlerini çıkar.
+    - Sık geçen dahil kartlar: "Maximum Kart", "Maximiles", "Maximiles Black", "Maximum Genç", "Privia Black", "Bankamatik Kartları", "MaxiPara Kart".
+    - 🚨 KAPSAM: Eğer "Tüm İş Bankası kredi kartları" veya "Maximum özellikli kredi kartları" diyorsa, detayda ("Maximum Kart, Maximiles...") hangi ana kartlar sayılıyorsa onları ekle. Sayılmıyorsa "Maximum Kart" ve "Maximiles" ekle.
+    - 🚨 HARİÇ KARTLAR (EXCLUSIONS): "Kampanyaya Dahil Olmayan Kartlar" veya "... hariçtir" ibaresine ÇOK DİKKAT ET.
+    - Ticari kartlar genellikle "Ticari Kredi Kartları", "Şirket Kredi Kartı", "İmece Kart", "Bayi Kart" isimleriyle geçer ve genelde HARİÇTİR. Hariçse listeye EKLEME. Dahilse listeye ["Maximum Ticari Kart", "İmece Kart"] şeklinde ekle.
+    - "Aidatsız Kartlar" veya "Maximum Fırsat" bazen hariç tutulur.
 - PARTICIPATION (katilim_sekli):
     - 🚨 PRIORITY ORDER:
-      1. Primary App: Look for "Katıl" button in "Maximum Mobil" or "İşCep". → Extract as "Maximum Mobil veya İşCep uygulamasından katılabilirsiniz."
+      1. Primary App: Look for "Katıl" button in "Maximum Mobil", "İşCep" or "Pazarama". → Extract as "Maximum Mobil, İşCep veya Pazarama'dan katılabilirsiniz."
       2. SMS: Look for "4402'ye SMS" → Extract as "4402'ye [KEYWORD] yazıp SMS gönderin."
       3. Automatic: If "katılım gerektirmez" or "otomatik" → Use "Otomatik Katılım".
       4. Fallback: If no button/SMS/app is mentioned but there is a clear instruction like "Kampanya detaylarını inceleyin", write exactly that instruction.
@@ -104,12 +108,12 @@ BANK_RULES = {
     - 🚨 İÇERİK: Sadece şunları yaz:
       * Minimum harcama eşiği ("2.000 TL harcamaya 200 MaxiMil")
       * Maksimum kazanç limiti ("Maks. 1.500 MaxiMil")
-      * Kampanya dışı kart/işlem türleri ("Nakit çekim, havale hariç")
-      * Özel koşul varsa ("Sadece yurt dışı harcamalar")
-    - ⛔ YAZMA: Tarihleri, katılım yöntemini, kart isimlerini tekrar YAZMA.
+      * Kampanya dışı işlem türleri ("Nakit çekim, havale, iptal/iade işlemleri hariçtir")
+      * Hariç tutulan kart grupları ("Ticari Kredi Kartları kampanyaya dahil değildir")
+    - ⛔ YAZMA: Tarihleri, katılım yöntemini, zaten ayrı bir listede verdiğin dahil kart isimlerini tekrar YAZMA.
 - BRANDS (SECTOR TAGGING):
     - 🚨 ÖNEMLI: Kampanya belirli bir marka/zincir içinse (Zara, Emirates, Migros vb.) o marka ismini 'brands' listesine ekle.
-    - Sektör için: "MaxiMil" → Dijital Platform; "Duty Free" veya "Yurt Dışı Harcama" → Turizm & Konaklama veya Ulaşım; "Zara Home" → Mobilya & Dekorasyon.
+    - Sektör için: "MaxiMil" → Turizm veya Ulaşım olabilir (metne bak); "Duty Free" → Turizm & Konaklama veya Ulaşım; "Pazarama" → E-Ticaret.
 """,
     'vakıfbank': """
 🚨 VAKIFBANK/WORLD SPECIFIC RULES:
@@ -546,10 +550,13 @@ VALID- SECTOR:
     - "Peşin fiyatına" gibi detayları yazma, sadece "150 TL Puan", "+4 Taksit", "%20 İndirim" yaz.
     - Eğer "100 TL Worldpuan" diyorsa "100 TL Worldpuan" yaz. (Değer + Tür)
 6. **CONDITIONS**: 
-    - Koşulları **maksimum 8-9 madde** olarak özetle. Uzun yasal metinleri atla.
+    - Koşulları **maksimum 6-7 madde** olarak özetle. Uzun yasal metinleri atla.
     - 🚨 İÇER: Minimum harcama eşiği, maksimum kazanç limiti, kampanya dışı işlem/kart türleri.
-    - 🚨 TEKRAR KURALI: 'start_date', 'end_date', 'cards', 'participation' alanlarında zaten olan bilgiyi TEKRAR YAZMA.
-    - Bankaya özel kural varsa (yukarda belirtilmişse) o kuralı öncelikle uygula.
+    - 🚨 KESİN YASAK (REDUNDANCY FILTER): 'start_date', 'end_date', 'cards', 'participation' alanlarında zaten olan bilgiyi BURAYA ASLA TAAŞIMA. 
+        * ❌ "Kampanya 1-28 Şubat tarihlerindedir." (Yazma, zaten date alanında var)
+        * ❌ "Maximum Kartlar dahildir." (Yazma, zaten cards alanında var)
+        * ❌ "Maximum Mobil'den katılabilirsiniz." (Yazma, zaten participation alanında var)
+    - Bankaya özel kural varsa (yukarıda belirtilmişse) o kuralı öncelikle uygula.
 7. **DATES (KRİTİK)**: 
     - Tüm tarihleri 'YYYY-MM-DD' formatında ver.
     - 🚨 YIL KURALI: Eğer yıl belirtilmemişse:
