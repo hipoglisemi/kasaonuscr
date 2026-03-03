@@ -88,17 +88,14 @@ class AmericanExpressScraper:
             self.db.commit()
         return card
 
-    def _get_or_create_sector(self, sector_name: str) -> Sector:
+    def _get_sector(self, sector_name: str) -> Sector:
         slug = self._slugify(sector_name)
         if not slug:
             slug = "diger"
-            sector_name = "Diğer"
             
         sector = self.db.query(Sector).filter_by(slug=slug).first()
         if not sector:
-            sector = Sector(name=sector_name, slug=slug)
-            self.db.add(sector)
-            self.db.commit()
+            sector = self.db.query(Sector).filter_by(slug="diger").first()
         return sector
 
     def _get_or_create_brands(self, brand_names: List[str]) -> List[Brand]:
@@ -331,7 +328,7 @@ class AmericanExpressScraper:
         if isinstance(ai_sector_name, list):
              ai_sector_name = ai_sector_name[0] if ai_sector_name else 'Diğer'
         sector_name = SECTOR_MAP.get(ai_sector_name, ai_sector_name) if ai_sector_name else 'Diğer'
-        sector = self._get_or_create_sector(sector_name)
+        sector = self._get_sector(sector_name)
 
         # ─── 5. Format Conditions & Insert Campaign ──────────────────────────────
         parsed_conditions = ai_data.get("conditions", [])
