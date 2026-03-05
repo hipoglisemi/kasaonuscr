@@ -77,17 +77,11 @@ def run_autofix():
         with get_db_session() as db:
             print("\n🔍 Scanning for defective campaigns...")
 
-            from datetime import timedelta
-            # Only check campaigns created in the last 2 days
-            # Older defective campaigns have likely unfixable URLs — no point retrying daily
-            cutoff = datetime.utcnow() - timedelta(days=2)
-
             # Find active campaigns with missing/poor descriptions, reward texts, or conditions
             defective_campaigns = db.query(Campaign).filter(
-                Campaign.is_active == True,
-                Campaign.created_at >= cutoff,
+                Campaign.is_active == True
             ).all()
-            print(f"   📊 Checking {len(defective_campaigns)} campaigns created in last 2 days.")
+            print(f"   📊 Checking {len(defective_campaigns)} active campaigns for defects.")
             
             to_fix = []
             for c in defective_campaigns:
