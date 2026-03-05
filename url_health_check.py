@@ -128,9 +128,9 @@ def run_url_health_check(deactivate_broken: bool = False):
                     print(f"      Final  : {result.get('final_url', '')}")
 
                     if deactivate_broken:
-                        c.is_active = False
+                        db.delete(c)
                         db.commit()
-                        print(f"      ⛔ Deactivated.")
+                        print(f"      ⛔ Deleted from DB.")
 
                 # Be polite — 2 requests/sec max
                 time.sleep(0.5)
@@ -159,9 +159,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--deactivate",
+        "--delete",
         action="store_true",
-        help="Automatically set is_active=False for campaigns with broken URLs",
+        help="Automatically delete campaigns with broken URLs from the database",
     )
     args = parser.parse_args()
-    run_url_health_check(deactivate_broken=args.deactivate)
+    run_url_health_check(deactivate_broken=args.delete)

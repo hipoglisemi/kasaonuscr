@@ -32,47 +32,22 @@ def archive_campaigns():
     try:
         with get_db_session() as db:
             # ---------------------------------------------------------
-            # 1. HARD DELETE: Campaigns older than 10 days
-            # ---------------------------------------------------------
-            print("\n🔍 1. Identifying campaigns to permanently delete (> 10 days expired)...")
-            
-            # Find campaigns to delete
+            # Find campaigns to delete (expired before today)
             to_delete = db.query(Campaign).filter(
-                Campaign.end_date != None,
-                Campaign.end_date < hard_delete_threshold
-            ).all()
-            
-            deleted_count = 0
-            for campaign in to_delete:
-                print(f"   ❌ Deleting: [{campaign.id}] {campaign.title[:50]}... (Ended: {campaign.end_date})")
-                db.delete(campaign)
-                deleted_count += 1
-                
-            db.commit()
-            print(f"✅ Successfully deleted {deleted_count} very old campaigns.")
-            
-            # ---------------------------------------------------------
-            # 2. SOFT DELETE: Campaigns that expired today/recently
-            # ---------------------------------------------------------
-            print("\n🔍 2. Identifying campaigns to archive (expired recently but < 10 days)...")
-            
-            # Find active campaigns that have passed their end date
-            to_archive = db.query(Campaign).filter(
-                Campaign.is_active == True,
                 Campaign.end_date != None,
                 Campaign.end_date < today
             ).all()
             
-            archived_count = 0
-            for campaign in to_archive:
-                print(f"   📦 Archiving: [{campaign.id}] {campaign.title[:50]}... (Ended: {campaign.end_date})")
-                campaign.is_active = False
-                archived_count += 1
+            deleted_count = 0
+            for campaign in to_delete:
+                print(f"   ❌ Deleting permanently: [{campaign.id}] {campaign.title[:50]}... (Ended: {campaign.end_date})")
+                db.delete(campaign)
+                deleted_count += 1
                 
             db.commit()
-            print(f"✅ Successfully archived {archived_count} recently expired campaigns.")
+            print(f"✅ Successfully deleted {deleted_count} expired campaigns.")
             
-            print("\n🏁 Archiving process completed successfully!")
+            print("\n🏁 Cleanup process completed successfully!")
             
     except Exception as e:
         print(f"\n📛 CRITICAL ERROR during archiving: {e}")

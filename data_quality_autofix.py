@@ -78,8 +78,10 @@ def run_autofix():
             print("\n🔍 Scanning for defective campaigns...")
 
             # Find active campaigns with missing/poor descriptions, reward texts, or conditions
+            # Skip any that have already been auto-corrected to avoid infinite loops for 'Diğer' sectors
             defective_campaigns = db.query(Campaign).filter(
-                Campaign.is_active == True
+                Campaign.is_active == True,
+                Campaign.auto_corrected == False
             ).all()
             print(f"   📊 Checking {len(defective_campaigns)} active campaigns for defects.")
             
@@ -281,10 +283,14 @@ def run_autofix():
                             db.rollback()
                             print(f"   ⚠️ Brand fix failed for {b_name}: {be}")
 
+                # ALWAYS mark as auto_corrected so we don't try again forever (even if Gemini failed to find missing data)
+                c.auto_corrected = True
+                updated = True
+
                 if updated:
                     db.commit()
                     fixed_count += 1
-                    print(f"   ✅ Campaign successfully repaired and saved!")
+                    print(f"   ✅ Campaign successfully repaired and saved! (Marked as auto_corrected)")
                 else:
                     print(f"   ⚠️ AI didn't find the missing data. No changes made.")
 
