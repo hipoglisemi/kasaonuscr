@@ -1,6 +1,6 @@
 """
 AI Parser Service - THE BRAIN 🧠
-Uses Gemini AI to parse campaign data from raw HTML/text
+Uses Gemini or Groq AI to parse campaign data from raw HTML/text
 Replaces 100+ lines of regex with intelligent natural language understanding
 """
 import os
@@ -11,7 +11,6 @@ import decimal
 import signal
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-import google.generativeai as genai
 from dotenv import load_dotenv
 from .text_cleaner import clean_campaign_text
 from .brand_normalizer import cleanup_brands
@@ -343,36 +342,137 @@ BANK_RULES = {
     """
 }
 
-# Configure Gemini with safety against hangs
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable is not set")
+# ── AI Provider Configuration ──────────────────────────────────────────────
+AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()  # "gemini" or "groq"
 
-try:
-    print("[DEBUG] Configuring google.generativeai...")
-    genai.configure(api_key=GEMINI_API_KEY)
-    print("[DEBUG] google.generativeai configured successfully.")
-except Exception as e:
-    print(f"[ERROR] Failed to configure google.generativeai: {e}")
-    # We don't raise here to avoid hanging the entire script 
-    # if the scraper just wants to run without AI initially
+if AI_PROVIDER == "groq":
+    try:
+        from groq import Groq as _GroqClient
+    except ImportError:
+        raise ImportError("groq package not installed. Run: pip install groq")
+
+    # Collect all keys: GROQ_API_KEY_1, _2, _3 … (or fallback to GROQ_API_KEY)
+    _groq_keys: list = []
+    for i in range(1, 20):  # support up to 19 keys
+        k = os.getenv(f"GROQ_API_KEY_{i}")
+        if k:
+            _groq_keys.append(k)
+    if not _groq_keys:
+        single = os.getenv("GROQ_API_KEY")
+        if not single:
+            raise ValueError("No GROQ_API_KEY found. Set GROQ_API_KEY or GROQ_API_KEY_1 ..")
+        _groq_keys = [single]
+
+    _groq_clients = [_GroqClient(api_key=k) for k in _groq_keys]
+    _gemini_models: list = []
+    print(f"[DEBUG] Groq key rotation: {len(_groq_keys)} key(s) loaded.")
+else:
+    # Gemini — collect GEMINI_API_KEY_1, _2, … (or fallback to GEMINI_API_KEY)
+    import google.generativeai as genai
+
+    _GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+
+    _gemini_keys: list = []
+    for i in range(1, 20):
+        k = os.getenv(f"GEMINI_API_KEY_{i}")
+        if k:
+            _gemini_keys.append(k)
+    if not _gemini_keys:
+        single = os.getenv("GEMINI_API_KEY")
+        if not single:
+            raise ValueError("No GEMINI_API_KEY found. Set GEMINI_API_KEY or GEMINI_API_KEY_1..7")
+        _gemini_keys = [single]
+
+    # Create one GenerativeModel per key (each configured independently)
+    _gemini_models: list = []
+    for _k in _gemini_keys:
+        try:
+            genai.configure(api_key=_k)
+            _gemini_models.append(genai.GenerativeModel(_GEMINI_MODEL_NAME))
+        except Exception as _e:
+            print(f"[WARN] Could not init Gemini model for a key: {_e}")
+
+    if not _gemini_models:
+        raise ValueError("No Gemini models could be initialised. Check your API keys.")
+
+    _groq_clients: list = []
+    print(f"[DEBUG] Gemini key rotation: {len(_gemini_models)} key(s) loaded (model: {_GEMINI_MODEL_NAME}).")
+# ────────────────────────────────────────────────────────────────────────────
 
 
 
 class AIParser:
     """
-    Gemini AI-powered campaign parser
-    Extracts structured data from unstructured campaign text
+    Gemini / Groq AI-powered campaign parser.
+    Extracts structured data from unstructured campaign text.
+    Active provider is controlled by AI_PROVIDER env variable.
     """
-    
-    def __init__(self, model_name: str = "gemini-2.5-flash"):
-        """
-        Initialize AI parser
-        
-        Args:
-            model_name: Gemini model to use (default: gemini-2.0-flash)
-        """
-        self.model = genai.GenerativeModel(model_name)
+
+    def __init__(self, model_name: str = None):
+        self._provider = AI_PROVIDER
+        if self._provider == "groq":
+            self._groq_clients = _groq_clients
+            self._groq_key_index = 0
+            self._groq_model = "llama-3.3-70b-versatile"
+            self._gemini_models: list = []
+            self._gemini_key_index = 0
+            self.model = None
+            print(f"[DEBUG] AIParser using Groq ({self._groq_model}) — {len(_groq_clients)} key(s)")
+        else:
+            # Use injected model_name or fall back to globally configured model
+            if model_name and model_name != _GEMINI_MODEL_NAME:
+                import google.generativeai as genai
+                self._gemini_models = [genai.GenerativeModel(model_name)]
+            else:
+                self._gemini_models = _gemini_models
+            self._gemini_key_index = 0
+            self._groq_clients = []
+            self._groq_key_index = 0
+            self.model = self._gemini_models[0]  # backward compat
+            print(f"[DEBUG] AIParser using Gemini — {len(self._gemini_models)} key(s) | model: {_GEMINI_MODEL_NAME}")
+
+    def _rotate_groq_key(self) -> bool:
+        """Switch to next Groq key. Returns True if a new key is available."""
+        if self._groq_key_index + 1 < len(self._groq_clients):
+            self._groq_key_index += 1
+            print(f"   🔄 Groq key rotated → key #{self._groq_key_index + 1}/{len(self._groq_clients)}")
+            return True
+        print(f"   ❌ All {len(self._groq_clients)} Groq key(s) exhausted for today.")
+        return False
+
+    def _rotate_gemini_key(self) -> bool:
+        """Switch to next Gemini key. Returns True if a new key is available."""
+        if self._gemini_key_index + 1 < len(self._gemini_models):
+            self._gemini_key_index += 1
+            self.model = self._gemini_models[self._gemini_key_index]
+            print(f"   🔄 Gemini key rotated → key #{self._gemini_key_index + 1}/{len(self._gemini_models)}")
+            return True
+        print(f"   ❌ All {len(self._gemini_models)} Gemini key(s) exhausted for today.")
+        return False
+
+    # ── Unified call helper ──────────────────────────────────────────────────
+    def _call_ai(self, prompt: str, timeout_sec: int = 65) -> str:
+        """Send prompt to active AI provider. Rotation happens in the retry loop."""
+        if self._provider == "groq":
+            client = self._groq_clients[self._groq_key_index]
+            completion = client.chat.completions.create(
+                model=self._groq_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=2048,
+                timeout=timeout_sec,
+            )
+            return completion.choices[0].message.content.strip()
+        else:
+            active_model = self._gemini_models[self._gemini_key_index]
+            response = call_with_timeout(
+                active_model.generate_content,
+                args=(prompt,),
+                kwargs={"request_options": {"timeout": 60}},
+                timeout_sec=timeout_sec,
+            )
+            return response.text.strip()
+    # ────────────────────────────────────────────────────────────────────────
         
     def parse_campaign_data(
         self,
@@ -399,39 +499,10 @@ class AIParser:
         # Build prompt
         prompt = self._build_prompt(clean_text, datetime.now().strftime("%Y-%m-%d"), bank_name, title)
         
-        max_retries = 3
+        max_retries = 5
         for attempt in range(max_retries):
             try:
-                # Call Gemini with a strict system timeout
-                response = call_with_timeout(
-                    self.model.generate_content,
-                    args=(prompt,),
-                    kwargs={'request_options': {'timeout': 60}},
-                    timeout_sec=65
-                )
-                
-                # Debugging info
-                try:
-                    if response.prompt_feedback:
-                        print(f"   ℹ️ Prompt Feedback: {response.prompt_feedback}")
-                except: pass
-                
-                try:
-                    if not response.parts:
-                        print("   ⚠️ Response has no parts.")
-                        print(f"   ℹ️ Candidates: {response.candidates}")
-                except: pass
-
-                try:
-                    result_text = response.text.strip()
-                except ValueError:
-                    # Often happens if content was blocked
-                    print("   ❌ Blocked content?")
-                    try:
-                        print(f"   ℹ️ Filters: {response.candidates[0].safety_ratings}")
-                        print(f"   ℹ️ Finish Reason: {response.candidates[0].finish_reason}")
-                    except: pass
-                    result_text = "{}"
+                result_text = self._call_ai(prompt, timeout_sec=65)
 
                 if not result_text:
                     print("   ⚠️ Empty response text.")
@@ -439,42 +510,94 @@ class AIParser:
 
                 # Extract JSON from response
                 json_data = self._extract_json(result_text)
-                
+
                 # Validate and normalize
                 normalized = self._normalize_data(json_data)
-                
+
                 return normalized
-                
+
             except Exception as e:
                 error_str = str(e)
-                if "429" in error_str or "Resource exhausted" in error_str:
-                    wait_time = (attempt + 1) * 2  # 2s, 4s, 6s...
-                    print(f"   ⚠️ AI Parsing Rate Limit (429). Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                if "429" in error_str or "Resource exhausted" in error_str or "rate_limit" in error_str.lower():
+                    # 1. Try rotating to next key first (instant — no wait)
+                    rotated = False
+                    if self._provider == "groq":
+                        rotated = self._rotate_groq_key()
+                    else:
+                        rotated = self._rotate_gemini_key()
+
+                    if rotated:
+                        print(f"   🔄 Switched to next key, retrying immediately...")
+                        continue  # retry immediately with new key
+
+                    # 2. No more keys — wait and retry
+                    wait_time = (attempt + 1) * 15  # 15s, 30s, 45s, 60s, 75s
+                    print(f"   ⚠️ All keys rate-limited. Waiting {wait_time}s... (Attempt {attempt+1}/{max_retries})")
                     import time
                     time.sleep(wait_time)
                     continue
-                
+
                 print(f"AI Parser Error: {e}")
                 return self._get_fallback_data(title or "")
-        
+
         print("   ❌ Max retries reached for AI Parser.")
         return self._get_fallback_data(title or "")
     
     def _clean_text(self, text: str) -> str:
-        """Clean and normalize text"""
+        """
+        Clean and normalize text before sending to AI.
+
+        Strategy (token optimization):
+        1. Split into lines and drop boilerplate lines:
+           - Very short lines (< 40 chars) → likely nav links, breadcrumbs, footer items
+           - Lines that look like pure navigation / copyright noise
+           - Duplicate lines
+        2. Rejoin and apply a tighter character limit (6 000 chars instead of 10 000).
+
+        Expected result: ~50-55 % fewer input tokens with no loss of campaign content.
+        """
         if not text:
             return ""
-        
-        # Remove excessive whitespace
-        text = re.sub(r'\s+', ' ', text)
-        
-        # Remove special characters but keep Turkish characters
-        text = re.sub(r'[^\w\s\.,;:!?%₺\-/()İıĞğÜüŞşÖöÇç]', ' ', text)
-        
-        # Limit length (Gemini has token limits)
-        if len(text) > 10000:
-            text = text[:10000]
-        
+
+        # ── Step 1: line-level boilerplate filter ────────────────────────────
+        # Common Turkish nav/footer noise patterns  (case-insensitive check)
+        _NAV_PATTERNS = re.compile(
+            r'^(ana sayfa|şubeler|iletişim|bize ulaşın|hakkımızda|kvkk|gizlilik|'
+            r'çerez|copyright|tüm hakları|instagram|twitter|facebook|linkedin|'
+            r'youtube|bizi takip|duyurular|haberler|aktif kampanya|kampanyalarımız|'
+            r'kampanyalar|ürünler|bireysel|kurumsal|faq|sıkça sorulan|yardım|'
+            r'site haritası|kariyer|basvuru|başvuru|indir|download|appstore|'
+            r'google play|app store|playstore)$',
+            re.IGNORECASE
+        )
+
+        lines = text.split('\n')
+        seen: set = set()
+        filtered: list = []
+        for line in lines:
+            stripped = line.strip()
+            # Drop blank or very short lines (probable single menu items)
+            if len(stripped) < 40:
+                lower = stripped.lower()
+                if _NAV_PATTERNS.match(lower) or len(stripped) < 15:
+                    continue
+            # Drop exact duplicates
+            if stripped in seen:
+                continue
+            seen.add(stripped)
+            filtered.append(stripped)
+
+        text = '\n'.join(filtered)
+
+        # ── Step 2: normalise whitespace + remove non-content characters ──────
+        text = re.sub(r'[ \t]+', ' ', text)           # collapse spaces/tabs
+        text = re.sub(r'\n{3,}', '\n\n', text)         # max 2 blank lines
+        text = re.sub(r'[^\w\s\.,;:!?%₺\-/()İıĞğÜüŞşÖöÇç\n]', ' ', text)
+
+        # ── Step 3: tighter length limit (was 10 000) ────────────────────────
+        if len(text) > 6000:
+            text = text[:6000]
+
         return text.strip()
     
     def _build_prompt(self, raw_text: str, current_date: str, bank_name: Optional[str], page_title: Optional[str] = None) -> str:
@@ -662,8 +785,9 @@ ANALİZ EDİLECEK METİN:
         return None
     
     def _get_fallback_data(self, title: str) -> Dict[str, Any]:
-        """Return fallback data if AI parsing fails"""
+        """Return fallback data if AI parsing fails — marked with _ai_failed=True"""
         return {
+            "_ai_failed": True,         # ← scrapers use this to skip saving
             "title": title or "Kampanya",
             "description": "",
             "reward_value": None,
@@ -833,14 +957,7 @@ JSON olarak cevap ver:
 }}}}"""
     
     try:
-        # Strict timeout wrapper to avoid grpc hangs
-        response = call_with_timeout(
-            parser.model.generate_content,
-            args=(prompt,),
-            kwargs={'request_options': {'timeout': 60}},
-            timeout_sec=65
-        )
-        result_text = response.text.strip()
+        result_text = parser._call_ai(prompt, timeout_sec=65)
         json_data = parser._extract_json(result_text)
         
         return {
