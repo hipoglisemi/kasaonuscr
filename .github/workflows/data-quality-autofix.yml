@@ -2,36 +2,45 @@ name: Data Quality Auto-Fixer
 
 on:
   schedule:
-    # TSİ 06:00, 12:00, 18:00, 00:00 → UTC 03:00, 09:00, 15:00, 21:00
-    - cron: '0 3,9,15,21 * * *'
-  workflow_dispatch: # Allows manual triggering from GitHub UI
+    # TSİ 06:00 → UTC 03:00 — günde 1 kere
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 jobs:
   autofix:
     runs-on: ubuntu-22.04
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
         cache: 'pip'
-        
+
     - name: Install System Dependencies (Chrome & Xvfb)
       run: |
         sudo apt-get update
         sudo apt-get install -y google-chrome-stable xvfb
-        
+
     - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        
+
     - name: Run Data Quality Auto-Fixer
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+        GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+        GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+        GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+        GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+        GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+        GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+        GEMINI_API_KEY_6: ${{ secrets.GEMINI_API_KEY_6 }}
+        GEMINI_API_KEY_7: ${{ secrets.GEMINI_API_KEY_7 }}
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       run: |
         xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python data_quality_autofix.py
