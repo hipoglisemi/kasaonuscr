@@ -367,8 +367,8 @@ if AI_PROVIDER == "groq":
     _gemini_models: list = []
     print(f"[DEBUG] Groq key rotation: {len(_groq_keys)} key(s) loaded.")
 else:
-    # Gemini — collect GEMINI_API_KEY_1, _2, … (or fallback to GEMINI_API_KEY)
-    import google.generativeai as genai
+    # Gemini — new google-genai SDK (replaces deprecated google-generativeai)
+    from google import genai as _genai_sdk
 
     _GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
@@ -383,20 +383,19 @@ else:
             raise ValueError("No GEMINI_API_KEY found. Set GEMINI_API_KEY or GEMINI_API_KEY_1..7")
         _gemini_keys = [single]
 
-    # Create one GenerativeModel per key (each configured independently)
-    _gemini_models: list = []
+    # Create one Client per key — no global state, perfect for rotation
+    _gemini_clients: list = []
     for _k in _gemini_keys:
         try:
-            genai.configure(api_key=_k)
-            _gemini_models.append(genai.GenerativeModel(_GEMINI_MODEL_NAME))
+            _gemini_clients.append(_genai_sdk.Client(api_key=_k))
         except Exception as _e:
-            print(f"[WARN] Could not init Gemini model for a key: {_e}")
+            print(f"[WARN] Could not init Gemini client for a key: {_e}")
 
-    if not _gemini_models:
-        raise ValueError("No Gemini models could be initialised. Check your API keys.")
+    if not _gemini_clients:
+        raise ValueError("No Gemini clients could be initialised. Check your API keys.")
 
     _groq_clients: list = []
-    print(f"[DEBUG] Gemini key rotation: {len(_gemini_models)} key(s) loaded (model: {_GEMINI_MODEL_NAME}).")
+    print(f"[DEBUG] Gemini key rotation: {len(_gemini_clients)} key(s) loaded (model: {_GEMINI_MODEL_NAME}).")
 # ────────────────────────────────────────────────────────────────────────────
 
 
@@ -414,22 +413,17 @@ class AIParser:
             self._groq_clients = _groq_clients
             self._groq_key_index = 0
             self._groq_model = "llama-3.3-70b-versatile"
-            self._gemini_models: list = []
+            self._gemini_clients: list = []
             self._gemini_key_index = 0
             self.model = None
             print(f"[DEBUG] AIParser using Groq ({self._groq_model}) — {len(_groq_clients)} key(s)")
         else:
-            # Use injected model_name or fall back to globally configured model
-            if model_name and model_name != _GEMINI_MODEL_NAME:
-                import google.generativeai as genai
-                self._gemini_models = [genai.GenerativeModel(model_name)]
-            else:
-                self._gemini_models = _gemini_models
+            self._gemini_clients = _gemini_clients
             self._gemini_key_index = 0
             self._groq_clients = []
             self._groq_key_index = 0
-            self.model = self._gemini_models[0]  # backward compat
-            print(f"[DEBUG] AIParser using Gemini — {len(self._gemini_models)} key(s) | model: {_GEMINI_MODEL_NAME}")
+            self.model = None  # no longer used — calls go via client
+            print(f"[DEBUG] AIParser using Gemini — {len(self._gemini_clients)} key(s) | model: {_GEMINI_MODEL_NAME}")
 
     def _rotate_groq_key(self) -> bool:
         """Switch to next Groq key. Returns True if a new key is available."""
@@ -442,12 +436,11 @@ class AIParser:
 
     def _rotate_gemini_key(self) -> bool:
         """Switch to next Gemini key. Returns True if a new key is available."""
-        if self._gemini_key_index + 1 < len(self._gemini_models):
+        if self._gemini_key_index + 1 < len(self._gemini_clients):
             self._gemini_key_index += 1
-            self.model = self._gemini_models[self._gemini_key_index]
-            print(f"   🔄 Gemini key rotated → key #{self._gemini_key_index + 1}/{len(self._gemini_models)}")
+            print(f"   🔄 Gemini key rotated → key #{self._gemini_key_index + 1}/{len(self._gemini_clients)}")
             return True
-        print(f"   ❌ All {len(self._gemini_models)} Gemini key(s) exhausted for today.")
+        print(f"   ❌ All {len(self._gemini_clients)} Gemini key(s) exhausted for today.")
         return False
 
     # ── Unified call helper ──────────────────────────────────────────────────
@@ -464,11 +457,12 @@ class AIParser:
             )
             return completion.choices[0].message.content.strip()
         else:
-            active_model = self._gemini_models[self._gemini_key_index]
+            # google-genai SDK: client.models.generate_content()
+            active_client = self._gemini_clients[self._gemini_key_index]
             response = call_with_timeout(
-                active_model.generate_content,
-                args=(prompt,),
-                kwargs={"request_options": {"timeout": 60}},
+                active_client.models.generate_content,
+                args=(_GEMINI_MODEL_NAME, prompt),
+                kwargs={"config": {"temperature": 0.1}},
                 timeout_sec=timeout_sec,
             )
             return response.text.strip()
