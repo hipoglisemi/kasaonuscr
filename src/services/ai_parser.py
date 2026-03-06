@@ -555,7 +555,7 @@ Bugünün tarihi: {current_date} (Yıl: {datetime.now().year})
 {title_instruction}
 
 VALID- SECTOR (CRITICAL):
-    You MUST pick the most appropriate sector from the list below and output ONLY the EXACT SLUG (the string on the right side). Do NOT output the display name.
+    Valid Sectors for Validation:
     {{
         "Market & Gıda": "market-gida",
         "Akaryakıt": "akaryakit",
@@ -583,6 +583,7 @@ VALID- SECTOR (CRITICAL):
         "Diğer": "diger"
     }}
     🚨 NOTE: If the campaign is about Sports, Matches, Football, Theatre, or Concerts (e.g., UEFA, Galatasaray, tiyatro, sinema), it MUST be categorized as 'kultur-sanat', NOT 'diger'.
+    🚨 NOTE: If the campaign is about "yeni müşteri" (new customer), "kredi kartı başvurusu" (credit card application), "ihtiyaç kredisi" (loan) or any banking/financial product sale, you MUST categorize it as 'finans-yatirim'.
     🚨 SECTOR OUTPUT RULE: Your JSON `"sector"` value must ONLY be one of the slugs above (e.g. "market-gida", NOT "Market & Gıda").
 
 ⭐⭐⭐ KRİTİK KURALLAR (DOKUNULMAZ) ⭐⭐⭐
