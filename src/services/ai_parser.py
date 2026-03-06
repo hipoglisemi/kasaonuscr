@@ -698,28 +698,34 @@ VALID- SECTOR:
     - "1-28 Şubat" gibi aralıklar için: 2026-02-01 ve 2026-02-28 (Yılı ekle).
 
 8. **KATILIM (PARTICIPATION)**:
-- Metin içinde "SMS", "Mobil", "Jüzdan", "Katıl" gibi ifadeleri ara.
-- 🚨 DOĞRULAMA: İş Bankası için ASLA "Jüzdan" veya "Axess Mobil" yazma.
-9. **KARTLAR (CARDS)**:
-- Hangi kartların GEÇERLİ olduğunu `cards` dizisine (array) ekle. (Örn: ["Maximum", "Maximiles"])
-- Eğer metinde karta özel bir bilgi YOKSA veya "Tüm kartlar geçerlidir" deniyorsa SADECE BOŞ LİSTE DÖN: `[]`. Asla "Tüm Kartlar" veya "Yok" yazma.
-10. **JSON ŞEMASI (ZORUNLU)**:
-Aşağıdaki EXACT JSON formatında yanıt ver. Sadece JSON kodunu yaz, başına sonuna '''json veya başka bir metin EKLEME.
+    - Metin içinde "SMS", "Mobil", "Jüzdan", "Katıl" gibi ifadeleri ara.
+    - 🚨 DOĞRULAMA: İş Bankası için ASLA "World Mobil" yazma. Metinde "World Mobil" geçse bile (ki bu bir hatadır), bunu "Maximum Mobil" olarak düzelt. Banka kurallarına (yukarıdaki) uy.
+    - Varsa tam talimatı yaz: "KAZAN yazıp 4455'e SMS gönderin" veya "Maximum Mobil üzerinden Katıl butonuna tıklayın".
+    - Yoksa boş bırakma, "Otomatik Katılım" veya metinde "Kampanya detaylarını inceleyin" diyorsa aynen bunu yaz. Tahmin yürütme.
 
+9. **HARCAMA-KAZANÇ KURALLARI (MATHEMATIC LOGIC)**:
+   - **discount**: SADECE "{{"N"}} Taksit" veya "+{{"N"}} Taksit"
+   - **reward_text**: 
+     - 🚨 YÜZDE + MAX LİMİT KURALI: "%10 (max 200TL)" formatında yaz.
+     - 🚨 PUAN: "100 TL Worldpuan" veya "500 Mil".
+     - 🚨 İNDİRİM: "200 TL İndirim".
+   - **min_spend**: Kampanyadan faydalanmak için (veya belirtilen ödülü kazanmak için) gereken minimum harcama tutarı. (Sayısal)
+
+JSON Formatı:
 {{
-  "title": "KISA VE NET KAMPANYA BAŞLIĞI",
-  "description": "2 cümlelik samimi ve teşvik edici açıklama metni.",
-  "reward_value": 0,
-  "reward_type": "cashback",
-  "reward_text": "Örn: 150 TL Puan",
-  "min_spend": 0,
-  "start_date": "2026-03-01",
-  "end_date": "2026-03-31",
-  "sector": "market-gida",
+  "title": "Kısa ve çarpıcı başlık",
+  "description": "2 cümlelik pazarlama metni",
+  "reward_value": 0.0,
+  "reward_type": "puan/indirim/taksit/mil",
+  "reward_text": "150 TL Puan",
+  "min_spend": 0.0,
+  "start_date": "YYYY-MM-DD",
+  "end_date": "YYYY-MM-DD",
+  "sector": "Sektör Slug'ı",
   "brands": ["Marka1", "Marka2"],
   "cards": ["Kart1", "Kart2"],
-  "participation": "Jüzdan ile katıl",
-  "conditions": ["Madde 1", "Madde 2", "Madde 3"]
+  "participation": "Katılım talimatı",
+  "conditions": ["Madde 1", "Madde 2"]
 }}
 
 ANALİZ EDİLECEK METİN:
@@ -739,17 +745,6 @@ ANALİZ EDİLECEK METİN:
     
     def _normalize_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize and validate parsed data"""
-        
-        # Helper to force cast any AI list-like output into a strict list
-        def _force_list(val):
-            if not val:
-                return []
-            if isinstance(val, list):
-                return [str(v).strip() for v in val if str(v).strip()]
-            if isinstance(val, str):
-                return [v.strip() for v in val.replace(";", ",").split(",") if v.strip()]
-            return []
-
         normalized = {
             "title": data.get("title") or "Kampanya",
             "description": data.get("description") or "",
@@ -759,11 +754,11 @@ ANALİZ EDİLECEK METİN:
             "min_spend": self._safe_int(data.get("min_spend")),
             "start_date": self._safe_date(data.get("start_date")),
             "end_date": self._safe_date(data.get("end_date")),
-            "sector": data.get("sector") or "diger",
-            "brands": _force_list(data.get("brands")),
-            "cards": _force_list(data.get("cards")),
+            "sector": data.get("sector") or "Diğer",
+            "brands": data.get("brands") or [],
+            "cards": data.get("cards") or [],
             "participation": data.get("participation") or "Detayları İnceleyin",
-            "conditions": _force_list(data.get("conditions"))
+            "conditions": data.get("conditions") or []
         }
         
         return normalized
