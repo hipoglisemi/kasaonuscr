@@ -976,6 +976,7 @@ JSON olarak cevap ver:
         print(f"API Parser Error: {e}")
         return {
             "_ai_failed": True,
+            "title": title,
             "short_title": title,
             "description": short_description,
             "reward_value": None,
