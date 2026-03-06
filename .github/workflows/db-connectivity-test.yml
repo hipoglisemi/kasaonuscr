@@ -11,7 +11,8 @@ jobs:
       - name: Test PostgreSQL Connection
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY_1: ${{ secrets.GROQ_API_KEY_1 }}
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
         run: |
           echo "Testing DB connectivity..."
           python3 -c "
