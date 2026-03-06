@@ -408,10 +408,13 @@ class AIParser:
     """
 
     def __init__(self, model_name: str = None):
+        import random
+        
         self._provider = AI_PROVIDER
         if self._provider == "groq":
             self._groq_clients = _groq_clients
-            self._groq_key_index = 0
+            # Start at a random key so parallel scrapers don't all hit Key 1 instantly
+            self._groq_key_index = random.randint(0, max(0, len(_groq_clients) - 1)) if _groq_clients else 0
             self._groq_model = "llama-3.3-70b-versatile"
             self._gemini_clients: list = []
             self._gemini_key_index = 0
@@ -450,6 +453,10 @@ class AIParser:
         
         if self._provider == "groq":
             time.sleep(2)  # Groq has a 30 RPM limit (~2 seconds is perfectly safe for 30 requests/min)
+            # Force rotation on every single call to distribute Token limits (12k TPM) across all 10 keys
+            # By doing this, 10 consecutive requests will use 10 different API keys
+            self._rotate_groq_key()
+            
             client = self._groq_clients[self._groq_key_index]
             completion = client.chat.completions.create(
                 model=self._groq_model,
