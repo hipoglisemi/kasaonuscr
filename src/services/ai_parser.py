@@ -554,8 +554,8 @@ Bugünün tarihi: {current_date} (Yıl: {datetime.now().year})
 {bank_instructions}
 {title_instruction}
 
-VALID- SECTOR:
-    Pick ONE matching sector from this exact dictionary and output ONLY its SLUG:
+VALID- SECTOR (CRITICAL):
+    You MUST pick the most appropriate sector from the list below and output ONLY the EXACT SLUG (the string on the right side). Do NOT output the display name.
     {{
         "Market & Gıda": "market-gida",
         "Akaryakıt": "akaryakit",
@@ -582,7 +582,8 @@ VALID- SECTOR:
         "Finans & Yatırım": "finans-yatirim",
         "Diğer": "diger"
     }}
-    🚨 NOTE: If the campaign is about Sports, Matches, Football, Theatre, or Concerts (e.g., UEFA, Galatasaray, tiyatro, sinema), it MUST be categorized as 'Kültür & Sanat' or 'Eğlence', NOT 'Diğer'.
+    🚨 NOTE: If the campaign is about Sports, Matches, Football, Theatre, or Concerts (e.g., UEFA, Galatasaray, tiyatro, sinema), it MUST be categorized as 'kultur-sanat', NOT 'diger'.
+    🚨 SECTOR OUTPUT RULE: Your JSON `"sector"` value must ONLY be one of the slugs above (e.g. "market-gida", NOT "Market & Gıda").
 
 ⭐⭐⭐ KRİTİK KURALLAR (DOKUNULMAZ) ⭐⭐⭐
 1. **DİL**: Tamamı TÜRKÇE olmalı.

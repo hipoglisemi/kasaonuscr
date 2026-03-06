@@ -155,7 +155,7 @@ class YapikrediWorldScraper:
         try:
             # Map sector
             sector_name = ai_data.get('sector', 'Diğer')
-            sector = self.db.query(Sector).filter(Sector.slug == sector_name).first()
+            sector = self.db.query(Sector).filter((Sector.slug == sector_name) | (Sector.name.ilike(sector_name))).first()
             if not sector:
                 sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
 
