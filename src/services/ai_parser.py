@@ -370,7 +370,7 @@ else:
     # Gemini — new google-genai SDK (replaces deprecated google-generativeai)
     from google import genai as _genai_sdk
 
-    _GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+    _GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 
     _gemini_keys: list = []
     for i in range(1, 20):
@@ -446,6 +446,8 @@ class AIParser:
     # ── Unified call helper ──────────────────────────────────────────────────
     def _call_ai(self, prompt: str, timeout_sec: int = 65) -> str:
         """Send prompt to active AI provider. Rotation happens in the retry loop."""
+        import time
+        time.sleep(4.5)  # Enforce ~13 RPM to respect the 15 RPM free-tier limit
         if self._provider == "groq":
             client = self._groq_clients[self._groq_key_index]
             completion = client.chat.completions.create(
