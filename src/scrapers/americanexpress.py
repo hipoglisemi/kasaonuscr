@@ -368,6 +368,7 @@ class AmericanExpressScraper:
             start_date=start_date,
             end_date=end_date,
             reward_text=ai_data.get('reward_text'),
+                        clean_text=ai_data.get('_clean_text'),
             reward_type=ai_data.get('reward_type'),
             reward_value=ai_data.get('reward_value'),
             eligible_cards=", ".join(cards) or "American Express",

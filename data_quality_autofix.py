@@ -21,6 +21,7 @@ import uuid
 from src.models import Campaign, Sector, Brand, CampaignBrand
 from src.database import get_db_session
 from src.services.ai_parser import parse_campaign_data, AIParser
+from sqlalchemy.orm import joinedload
 
 # Shared cleaner — same preprocessing scrapers use (filters boilerplate, dedup, 6K limit)
 _clean_text = AIParser._clean_text
@@ -79,7 +80,11 @@ def run_autofix():
 
             # Find active campaigns with missing/poor descriptions, reward texts, or conditions
             # Skip any that have already been auto-corrected to avoid infinite loops for 'Diğer' sectors
-            defective_campaigns = db.query(Campaign).filter(
+            # Use eager loading to prevent N+1 query hangs
+            defective_campaigns = db.query(Campaign).options(
+                joinedload(Campaign.sector),
+                joinedload(Campaign.brands)
+            ).filter(
                 Campaign.is_active == True,
                 Campaign.auto_corrected == False
             ).all()
@@ -156,14 +161,21 @@ def run_autofix():
                 print(f"\n🛠️ Fixing: [{c.id}] {c.title[:40]}... (Reasons: {reasons})")
                 print(f"   🔗 URL: {c.tracking_url}")
                 
-                # Fetch fresh HTML
-                html_text = fetch_html(c.tracking_url)
-                if not html_text or len(html_text) < 50:
-                    print(f"   ❌ Could not extract meaningful text from URL. Skipping.")
-                    continue
-                
-                # Clean text with the same preprocessor scrapers use
-                text_to_parse = _clean_text(None, html_text)
+                # Use optimized clean_text from DB if available
+                text_to_parse = ""
+                if c.clean_text and len(c.clean_text) > 50:
+                    print(f"   ⚡ Using pre-cleaned text from DB ({len(c.clean_text)} chars)")
+                    text_to_parse = c.clean_text
+                else:
+                    # Fallback to fetching fresh HTML for old unoptimized campaigns
+                    print(f"   🌐 Fetching HTML fallback for old campaign...")
+                    html_text = fetch_html(c.tracking_url)
+                    if not html_text or len(html_text) < 50:
+                        print(f"   ❌ Could not extract meaningful text from URL. Skipping.")
+                        continue
+                    
+                    # Clean text with the same preprocessor scrapers use
+                    text_to_parse = _clean_text(None, html_text)
 
                 print(f"   🤖 Sending {len(text_to_parse)} characters to AI for re-parsing...")
                 ai_data = parse_campaign_data(

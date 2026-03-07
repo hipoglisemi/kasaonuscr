@@ -287,6 +287,7 @@ class ParafScraper:
             badge_color=data.get("badge_color"),
             card_logo_url=card_logo_url,  # Use mapped logo URL
             
+            clean_text=ai_data.get('_clean_text') if 'ai_data' in locals() else None,
             tracking_url=url,
             image_url=image_url,
             is_active=True

@@ -551,13 +551,13 @@ class DenizbankScraper:
                         INSERT INTO campaigns (
                             title, description, slug, image_url, tracking_url, is_active, 
                             sector_id, card_id, start_date, end_date, conditions, 
-                            eligible_cards, reward_text, reward_value, reward_type,
+                            eligible_cards, reward_text, reward_value, reward_type, clean_text,
                             created_at, updated_at
                         )
                         VALUES (
                             :title, :description, :slug, :image_url, :tracking_url, true, 
                             :sector_id, :card_id, :start_date, :end_date, :conditions, 
-                            :eligible_cards, :reward_text, :reward_value, :reward_type,
+                            :eligible_cards, :reward_text, :reward_value, :reward_type, :clean_text,
                             NOW(), NOW()
                         )
                         RETURNING id

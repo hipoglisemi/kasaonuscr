@@ -140,6 +140,7 @@ class Campaign(Base):
     category = Column(String, nullable=True)
     badge_color = Column(String, nullable=True)
     card_logo_url = Column(String, nullable=True)
+    clean_text = Column(Text, nullable=True)
 
     # Quality Control
     quality_score = Column(Integer, nullable=True)

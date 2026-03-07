@@ -274,6 +274,7 @@ class VakifbankScraper:
                 title=title,
                 description=desc,
                 reward_text=ai_data.get("reward_text"),
+                        clean_text=ai_data.get('_clean_text'),
                 reward_value=ai_data.get("reward_value"),
                 conditions=final_conditions,
                 eligible_cards=", ".join(ai_data.get("cards", [])),

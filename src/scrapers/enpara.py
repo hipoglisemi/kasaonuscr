@@ -266,6 +266,7 @@ class EnparaScraper:
                 reward_value=ai_data.get('reward_value'),
                 reward_type=ai_data.get('reward_type'),
                 reward_text=ai_data.get('reward_text', 'Detayları İnceleyin'),
+                clean_text=ai_data.get('_clean_text', ''),
                 description=ai_data.get('description') or details_text,
                 conditions=conditions_text, # Updated
                 start_date=start_date,

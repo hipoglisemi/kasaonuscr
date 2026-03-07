@@ -249,6 +249,7 @@ class ParafGencScraper:
                 category=data.get("category"),
                 badge_color=data.get("badge_color"),
                 card_logo_url="https://www.parafgenc.com.tr/content/dam/parafree/paraf-genc-logolar/paraf-genc-logo.png",
+                clean_text=ai_data.get('_clean_text') if 'ai_data' in locals() else None,
                 tracking_url=url,
                 image_url=image_url,
                 is_active=True

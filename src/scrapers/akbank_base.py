@@ -227,6 +227,7 @@ class AkbankBaseScraper:
                 image_url=image_url,
                 start_date=start_date,
                 end_date=end_date,
+                clean_text=ai_data.get('_clean_text'),
                 is_active=True,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),

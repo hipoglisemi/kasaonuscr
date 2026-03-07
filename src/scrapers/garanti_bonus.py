@@ -323,6 +323,7 @@ class GarantiBonusScraper:
                 slug=slug,
                 title=ai_data.get('short_title') or ai_data.get('title') or title,
                 reward_text=ai_data.get('reward_text'),
+                        clean_text=ai_data.get('_clean_text'),
                 reward_value=ai_data.get('reward_value'),
                 reward_type=ai_data.get('reward_type'),
                 description=details_text,

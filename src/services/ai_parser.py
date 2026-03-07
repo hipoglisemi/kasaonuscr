@@ -435,6 +435,9 @@ class AIParser:
 
                 # Validate and normalize
                 normalized = self._normalize_data(json_data)
+                
+                # INJECT cleaned text into the result dictionary for scrapers to save to DB
+                normalized["_clean_text"] = clean_text
 
                 return normalized
 
@@ -449,10 +452,14 @@ class AIParser:
                     continue
 
                 print(f"AI Parser Error: {e}")
-                return self._get_fallback_data(title or "")
+                fallback = self._get_fallback_data(title or "")
+                fallback["_clean_text"] = clean_text
+                return fallback
 
         print("   ❌ Max retries reached for AI Parser.")
-        return self._get_fallback_data(title or "")
+        fallback = self._get_fallback_data(title or "")
+        fallback["_clean_text"] = clean_text  # Inject to save even if AI fails
+        return fallback
     
     def _clean_text(self, text: str) -> str:
         """
@@ -787,6 +794,8 @@ def parse_api_campaign(
     
     if len(clean_content) > limit:
         clean_content = clean_content[:limit]
+        
+    clean_text = clean_content
     
     # Get bank-specific rules
     bank_instructions = ""

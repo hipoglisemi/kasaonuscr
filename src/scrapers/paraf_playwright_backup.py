@@ -294,6 +294,7 @@ class ParafScraper:
 
             # full_text=f"{data.get('title')} {data.get('description')}", # REMOVED: Invalid field
             
+            clean_text=ai_data.get('_clean_text') if 'ai_data' in locals() else None,
             tracking_url=url,
             image_url=image_url or "https://www.paraf.com.tr/content/dam/parafcard/paraf-logos/paraf-logo-yeni.png",
             is_active=True

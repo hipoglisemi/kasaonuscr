@@ -190,6 +190,7 @@ class YapikrediCrystalScraper:
                 reward_value=ai_data.get('reward_value'),             # ← AI
                 reward_type=ai_data.get('reward_type'),               # ← AI
                 reward_text=ai_data.get('reward_text', 'Detayları İnceleyin'),  # ← AI
+                clean_text=ai_data.get('_clean_text', ''),
                 description=details_text,                            # ← API (ShortDescription)
                 conditions="\n".join(all_lines),                 # ← AI (participation + conditions)
                 start_date=start_date,                                # ← API
