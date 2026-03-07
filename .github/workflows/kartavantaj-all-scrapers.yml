@@ -3,8 +3,16 @@ name: Kartavantaj Auto Scrapers
 run-name: "🤖 Scraper: ${{ github.event.inputs.scraper || 'Tümü (Zamanlı)' }}"
 
 on:
-  # Sadece manuel çalıştırma — zamanlı çalışma artık grup workflow'larında
   workflow_dispatch:
+    inputs:
+      scraper:
+        description: 'Çalıştırılacak scraper (Örn: isbankasi_maximiles) veya hepsi için "all" yazın'
+        required: false
+        default: 'all'
+      limit:
+        description: 'Çekilecek max kampanya sayısı (Sadece İşbankası için desteklenir, boş bırakılırsa limitsiz)'
+        required: false
+        default: ''
 
 jobs:
   # Step 1: Compute which scrapers to run
