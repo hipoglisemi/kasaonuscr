@@ -258,17 +258,20 @@ class IsbankMaximilesScraper:
         scroll_count = 0
         while scroll_count < 30:
             soup = BeautifulSoup(self.page.content(), "html.parser")
-            count = len([
-                a for a in soup.find_all("a", href=True)
-                if "/kampanyalar/" in a["href"] and "arsiv" not in a["href"]
-            ])
+            valid = []
+            for c in soup.select(".campaign-item, .col-xl-4, .card"):
+                valid.extend(c.find_all("a", href=True))
+            count = len([a for a in valid if "/kampanyalar/" in a.get("href", "") and "arsiv" not in a.get("href", "")])
             if limit and count >= limit:
                 break
 
             # ── Yeni ekleme: Son eklenen kampanyalar expired bölgesine girdi mi? ──
             try:
                 # Check the most recently loaded cards (last 10-15)
-                campaign_items = soup.find_all("a", href=lambda href: href and "/kampanyalar/" in href)
+                valid_items = []
+                for c in soup.select(".campaign-item, .col-xl-4, .card"):
+                    valid_items.extend(c.find_all("a", href=lambda href: href and "/kampanyalar/" in href))
+                campaign_items = valid_items
                 if len(campaign_items) > 10:
                     recent = campaign_items[-10:]
                     expired_count = 0
@@ -301,10 +304,10 @@ class IsbankMaximilesScraper:
                 self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 time.sleep(3)
                 new_soup = BeautifulSoup(self.page.content(), "html.parser")
-                new_count = len([
-                    a for a in new_soup.find_all("a", href=True)
-                    if "/kampanyalar/" in a["href"]
-                ])
+                valid_new = []
+                for c in new_soup.select(".campaign-item, .col-xl-4, .card"):
+                    valid_new.extend(c.find_all("a", href=True))
+                new_count = len([a for a in valid_new if "/kampanyalar/" in a.get("href", "")])
                 if new_count <= prev_count:
                     break
                 prev_count = new_count
@@ -344,8 +347,12 @@ class IsbankMaximilesScraper:
         all_links = []
         expired_links = []
         
-        for a in soup.find_all("a", href=True):
-            href = a["href"].lower()
+        valid_a_tags = []
+        for container in soup.select(".campaign-item, .col-xl-4, .card"):
+            valid_a_tags.extend(container.find_all("a", href=True))
+            
+        for a in valid_a_tags:
+            href = a.get("href", "").lower()
             
             if (
                 ("/kampanyalar/" in href or "kampanyalar/" in href)
