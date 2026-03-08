@@ -19,6 +19,7 @@ jobs:
           - akbank_business
           - akbank_free
           - akbank_wings
+          - albaraka
           - americanexpress
           - chippin
           - denizbank
