@@ -24,6 +24,7 @@ jobs:
           - yapikredi_play
           - yapikredi_world
           - ziraat
+          - turktelekom
 
     name: "🤖 ${{ matrix.scraper }}"
 
