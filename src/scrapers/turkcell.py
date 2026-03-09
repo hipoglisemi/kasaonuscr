@@ -296,18 +296,30 @@ class TurkcellScraper:
             url_hash = uuid.uuid5(uuid.NAMESPACE_URL, url).hex[:8]
             slug = f"{slug}-{url_hash}"
         
-        # Build conditions - merge participation override + AI conditions
+        # Build ai_marketing_text with participation in the format frontend expects
+        # CampaignDetailClient.tsx uses regex: /📱 Katılım:\s*([\s\S]+?)(?:\n\n|$)/
+        participation = data.get("participation", "")
+        ai_description = data.get("marketing_text") or data.get("description", "")
+        
+        # Try the override from accordion (stored in data by the scraper override above)
+        # If participation is still generic, use accordion text directly
+        if not participation or 'talimatları izleyerek' in participation:
+            participation = ""  # Will be empty → ai_marketing_text won't have participation section
+        
+        if participation.strip():
+            # Clean up the participation text
+            clean_part = participation.strip()
+            # Remove the bracket-style labels we added
+            import re as _re
+            clean_part = _re.sub(r'\[[^\]]+\]:\s*', '', clean_part).strip()
+            ai_marketing_text = f"📱 Katılım: {clean_part}\n\n{ai_description}" if ai_description else f"📱 Katılım: {clean_part}"
+        else:
+            ai_marketing_text = ai_description
+        
+        # Build conditions (without participation prepended anymore — it's in ai_marketing_text)
         ai_conditions = data.get("conditions", "")
         if isinstance(ai_conditions, list):
             ai_conditions = "\n".join(ai_conditions)
-        
-        # Get participation from ai_data (already overridden above if applicable)
-        participation = data.get("participation", "")
-        
-        # Build final conditions with participation prepended
-        final_conditions = ai_conditions
-        if participation and participation.strip() and 'talimatları izleyerek' not in participation:
-            final_conditions = f"Katılım Şekli:\n{participation}\n\n{ai_conditions}" if ai_conditions else f"Katılım Şekli:\n{participation}"
         
         campaign = Campaign(
             card_id=card.id,
@@ -315,7 +327,7 @@ class TurkcellScraper:
             title=data.get("title"),
             slug=slug,
             description=data.get("description"),
-            conditions=final_conditions,
+            conditions=ai_conditions,
             reward_text=data.get("reward_text"),
             reward_value=data.get("reward_value"),
             reward_type=data.get("reward_type"),
@@ -324,7 +336,7 @@ class TurkcellScraper:
             image_url=image_url or "https://www.turkcell.com.tr/assets/img/turkcell-logo.png",
             tracking_url=url,
             is_active=True,
-            ai_marketing_text=data.get("marketing_text") or data.get("description"),
+            ai_marketing_text=ai_marketing_text,
             eligible_cards=data.get("eligible_cards") or data.get("cards") or "Turkcell Müşterileri",
             category=data.get("category"),
             badge_color=data.get("badge_color"),
