@@ -195,13 +195,15 @@ class TurkcellScraper:
             for header in headers:
                 try:
                     header_text = (await header.inner_text()).strip()
-                    span = await header.query_selector("span[aria-expanded]")
-                    expanded = await span.get_attribute("aria-expanded") == "true" if span else False
+                    if not header_text: continue
                     
-                    if not expanded:
-                        await header.click()
-                        await asyncio.sleep(0.8)
+                    # 1. Scroll and Click
+                    await header.scroll_into_view_if_needed()
+                    # Use evaluate to click direct DOM to avoid overlays
+                    await page.evaluate('(h) => h.click()', header)
+                    await asyncio.sleep(1.2) # Increased wait for expansion animation
                     
+                    # 2. Extract content from the item
                     text = await page.evaluate('''(header) => {
                         const item = header.closest('.ant-collapse-item');
                         if (!item) return "";
@@ -210,19 +212,24 @@ class TurkcellScraper:
                     }''', header)
                     
                     if text.strip():
+                        print(f"         ✅ Extracted: {header_text[:30]}...")
                         content_parts.append(f"### {header_text}\n{text}")
                         # --- PARTICIPATION FIX ---
-                        if any(x in header_text.lower() for x in ["katılım", "nasil faydalanirim", "satın alma"]):
+                        if any(x in header_text.lower() for x in ["katılım", "nasil faydalanirim", "satın alma", "kampanya detayları"]):
                             participation_text += f"\n[{header_text}]: {text}"
 
                 except Exception as ex:
-                    print(f"         ⚠️ Error expanding section: {ex}")
+                    print(f"         ⚠️ Error expanding section {header_text if 'header_text' in locals() else ''}: {ex}")
 
-            raw_text = "\n\n".join(content_parts) if content_parts else await page.evaluate("document.body.innerText")
+            if content_parts:
+                raw_text = "\n\n".join(content_parts)
+            else:
+                # Fallback to body text if no accordions found or extracted
+                raw_text = await page.evaluate("document.body.innerText")
             
-            # Append explicit participation info for AI
+            # Append explicit participation info for AI - make it very loud
             if participation_text:
-                raw_text += f"\n\n--- ÖNEMLİ KATILIM BİLGİLERİ ---\n{participation_text}"
+                raw_text = f"--- TURKCELL KATILIM DETAYLARI ---\n{participation_text}\n\n--- TÜM İÇERİK ---\n{raw_text}"
 
             # AI Parsing
             print(f"      🧠 Sending to AI Parser...")
@@ -232,6 +239,21 @@ class TurkcellScraper:
                 bank_name="turkcell",
                 card_name="Turkcell"
             )
+            
+            # CRITICAL: Override participation with directly extracted accordion text
+            # The AI's _clean_text often strips short lines, making participation generic
+            if participation_text.strip():
+                # Clean up the accordion text into a readable format
+                clean_participation = participation_text.strip()
+                # Remove JSON-unsafe chars but keep Turkish characters
+                clean_participation = clean_participation.replace("[Katılım Kriterleri]: ", "**Katılım Kriterleri:**\n")
+                clean_participation = clean_participation.replace("[Diğer Satın Alma Seçenekleri]: ", "**Diğer Satın Alma Seçenekleri:**\n")
+                clean_participation = clean_participation.replace("[Kampanya Detayları]: ", "**Kampanya Detayları:**\n")
+                # Only override if the AI gave generic text
+                current_participation = ai_data.get('participation', '')
+                if not current_participation or 'talimatları izleyerek' in current_participation or 'Otomatik' in current_participation:
+                    ai_data['participation'] = clean_participation[:800]
+                    print(f"         ✅ Participation override applied (accordion text)")
             
             # Explicitly set image if metadata extraction missed it or picked logo
             if image_url and (not ai_data.get('image_url') or 'logo' in ai_data.get('image_url', '').lower()):
@@ -274,13 +296,26 @@ class TurkcellScraper:
             url_hash = uuid.uuid5(uuid.NAMESPACE_URL, url).hex[:8]
             slug = f"{slug}-{url_hash}"
         
+        # Build conditions - merge participation override + AI conditions
+        ai_conditions = data.get("conditions", "")
+        if isinstance(ai_conditions, list):
+            ai_conditions = "\n".join(ai_conditions)
+        
+        # Get participation from ai_data (already overridden above if applicable)
+        participation = data.get("participation", "")
+        
+        # Build final conditions with participation prepended
+        final_conditions = ai_conditions
+        if participation and participation.strip() and 'talimatları izleyerek' not in participation:
+            final_conditions = f"Katılım Şekli:\n{participation}\n\n{ai_conditions}" if ai_conditions else f"Katılım Şekli:\n{participation}"
+        
         campaign = Campaign(
             card_id=card.id,
             sector_id=sector.id if sector else None,
             title=data.get("title"),
             slug=slug,
             description=data.get("description"),
-            conditions="\n".join(data.get("conditions", [])) if isinstance(data.get("conditions"), list) else data.get("conditions"),
+            conditions=final_conditions,
             reward_text=data.get("reward_text"),
             reward_value=data.get("reward_value"),
             reward_type=data.get("reward_type"),
@@ -290,7 +325,7 @@ class TurkcellScraper:
             tracking_url=url,
             is_active=True,
             ai_marketing_text=data.get("marketing_text") or data.get("description"),
-            eligible_cards=data.get("eligible_cards") or "Turkcell Müşterileri",
+            eligible_cards=data.get("eligible_cards") or data.get("cards") or "Turkcell Müşterileri",
             category=data.get("category"),
             badge_color=data.get("badge_color"),
             card_logo_url=data.get("card_logo_url") or "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Turkcell_logo.svg/1200px-Turkcell_logo.svg.png",

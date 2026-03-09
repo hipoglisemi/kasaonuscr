@@ -353,7 +353,16 @@ BANK_RULES = {
     - If there are no specific participation steps mentioned, output "Otomatik Katılım".
 - CONDITIONS:
     - Always generate at least 1-2 bullet points for conditions summarizing the title or text.
-    """
+    """,
+    'turkcell': """
+🚨 TURKCELL SPECIFIC RULES:
+- PARTICIPATION: Details are usually hidden in accordions.
+    - 🚨 PRIORITY: Look for keywords like "Katılım Kriterleri", "Nasıl Faydalanırım", "Diğer Satın Alma Seçenekleri", "Kampanya Detayları".
+    - If headers contain these, their content is the MOST IMPORTANT for the 'participation' field.
+    - If the text mentions "Uygulama üzerinden", "Şifre al", "Paycell", extract these exact steps.
+- ELIGIBLE CARDS: Common values: "Tüm Turkcell Müşterileri", "Paycell Kart Sahipleri", "Turkcell Pasaj Müşterileri".
+- BRAND: Identify the partner brand (e.g., Obilet, Sigortam.net, Uber) clearly.
+"""
 }
 
 # ── AI Provider Configuration ──────────────────────────────────────────────
