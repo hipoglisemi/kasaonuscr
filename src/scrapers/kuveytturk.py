@@ -146,46 +146,53 @@ class KuveytTurkScraper:
             # 1. Wait for regular items
             await page.wait_for_selector(".campaign-card, a[href*='/kampanyalar/']", timeout=30000)
 
-            # Click "Daha Fazla Göster" loop - Persistent until items stop increasing
+            # Click "Daha Fazla Göster" loop - Exit when count stops increasing
             click_count = 0
-            while True:
+            MAX_CLICKS = 30
+            consecutive_no_growth = 0
+            
+            while click_count < MAX_CLICKS:
                 try:
                     # Count current unique campaign URLs
-                    current_items = await page.evaluate('''() => {
+                    current_count = await page.evaluate('''() => {
                         const links = Array.from(document.querySelectorAll("a[href*='/kampanyalar/']"));
-                        const unique = new Set(links.map(a => a.href).filter(h => !h.includes('biten-kampanyalar')));
+                        const unique = new Set(links.map(a => a.href).filter(h => !h.includes('biten-kampanyalar') && h.includes('/kampanyalar/')));
                         return unique.size;
                     }''')
-                    print(f"      📊 Current unique campaigns visible: {current_items}")
+                    print(f"      📊 Current unique campaigns visible: {current_count}")
                     
                     button = page.locator(".show-more")
-                    if await button.count() > 0:
-                        last_item_count = current_items
-                        
-                        # Use standard CSS selector for evaluate
-                        await page.evaluate('''() => {
-                            const btn = document.querySelector('.show-more');
-                            if (btn) btn.click();
-                        }''')
-                        
-                        click_count += 1
-                        print(f"      👇 Clicked 'Daha Fazla Göster' ({click_count})...")
-                        
-                        # Scroll to bottom to trigger JS
-                        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        
-                        # Wait for count to increase
-                        try:
-                            await page.wait_for_function(f"document.querySelectorAll('.campaign-card').length > {last_item_count}", timeout=8000)
-                        except:
-                            print("      ⏳ Wait for new items timed out (proceeding)...")
-                        
-                        await asyncio.sleep(2) 
-                    else:
-                        print(f"      ✨ Pagination finished. Total clicks: {click_count}")
+                    if await button.count() == 0:
+                        print(f"      ✨ No more 'Daha Fazla Göster' button. Total clicks: {click_count}")
                         break
                     
-                    if click_count > 60: break
+                    # Click
+                    await page.evaluate('''() => {
+                        const btn = document.querySelector('.show-more');
+                        if (btn) btn.click();
+                    }''')
+                    click_count += 1
+                    print(f"      👇 Clicked 'Daha Fazla Göster' ({click_count})...")
+                    
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    await asyncio.sleep(3)
+                    
+                    # Check if count grew
+                    new_count = await page.evaluate('''() => {
+                        const links = Array.from(document.querySelectorAll("a[href*='/kampanyalar/']"));
+                        const unique = new Set(links.map(a => a.href).filter(h => !h.includes('biten-kampanyalar') && h.includes('/kampanyalar/')));
+                        return unique.size;
+                    }''')
+                    
+                    if new_count <= current_count:
+                        consecutive_no_growth += 1
+                        print(f"      ⚠️ No new campaigns after click (attempt {consecutive_no_growth}/3)...")
+                        if consecutive_no_growth >= 3:
+                            print(f"      ✅ Pagination done (no growth for 3 consecutive clicks).")
+                            break
+                    else:
+                        consecutive_no_growth = 0
+                        
                 except Exception as b_err:
                     print(f"      ⚠️ Pagination interaction issue: {b_err}")
                     break
@@ -213,11 +220,6 @@ class KuveytTurkScraper:
                 
                 # For Kuveyt Turk, we consider them active unless in /biten-kampanyalar (already filtered)
                 active_urls.add(full_url)
-                
-                if any(x in parent_text.lower() for x in ["sona erdi", "bitmiştir", "geçmiş"]):
-                    expired_urls.add(full_url)
-                else:
-                    active_urls.add(full_url)
                     
         except Exception as e:
             print(f"      ❌ List load failed: {e}")
