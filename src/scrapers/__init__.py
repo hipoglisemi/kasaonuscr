@@ -26,6 +26,10 @@ try:
     from .enpara import EnparaScraper
 except ImportError: EnparaScraper = None
 
+try:
+    from .turktelekom import TurkTelekomScraper
+except ImportError: TurkTelekomScraper = None
+
 __all__ = [
     'GarantiBonusScraper',
     'GarantiMilesAndSmilesScraper',
@@ -33,5 +37,6 @@ __all__ = [
     'AkbankAxessScraper',
     'AkbankFreeScraper',
     'AkbankBusinessScraper',
-    'EnparaScraper'
+    'EnparaScraper',
+    'TurkTelekomScraper'
 ]
