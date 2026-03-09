@@ -343,7 +343,7 @@ class TurkcellScraper:
             eligible_cards=data.get("eligible_cards") or data.get("cards") or "Turkcell Müşterileri",
             category=data.get("category"),
             badge_color=data.get("badge_color"),
-            card_logo_url=data.get("card_logo_url") or "https://upload.wikimedia.org/wikipedia/en/thumb/5/53/Turkcell_logo.svg/1200px-Turkcell_logo.svg.png",
+            card_logo_url=None,  # Let card.logo_url from cards table take priority
             clean_text=data.get("_clean_text"),
             quality_score=data.get("quality_score", 0)
         )
