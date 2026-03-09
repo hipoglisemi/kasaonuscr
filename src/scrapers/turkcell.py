@@ -161,53 +161,70 @@ class TurkcellScraper:
             # 2. Extract Basic Info
             title = await page.inner_text("h1") if await page.query_selector("h1") else "Turkcell Kampanyası"
             
-            # 3. Expand Accordions
+            # --- IMAGE FIX ---
+            # Smart Image Selection: Find the largest non-logo image on the page
+            image_url = await page.evaluate('''() => {
+                const imgs = Array.from(document.querySelectorAll('img'));
+                const candidates = imgs
+                    .map(img => ({
+                        src: img.src,
+                        area: img.naturalWidth * img.naturalHeight,
+                        width: img.naturalWidth,
+                        isLogo: img.src.toLowerCase().includes('logo') || img.className.toLowerCase().includes('logo') || img.src.includes('nav')
+                    }))
+                    .filter(c => c.area > 15000 && !c.isLogo) // Minimum size approx 120x120
+                    .sort((a, b) => b.area - a.area);
+                
+                return candidates.length > 0 ? candidates[0].src : null;
+            }''')
+            
+            if not image_url:
+                # Fallback: specific container check
+                image_url = await page.evaluate('''() => {
+                    const banner = document.querySelector('.Detail_detail__image__omC5p img, [class*="Detail_detail__image"] img');
+                    if (banner && !banner.src.includes('logo')) return banner.src;
+                    return null;
+                }''')
+            
+            # 3. Expand Accordions & Extract Participation
             print(f"      📂 Expanding detail accordions...")
-            # Accordion headers identified: div.ant-collapse-header
             headers = await page.query_selector_all('div.ant-collapse-header')
             content_parts = []
+            participation_text = ""
             
             for header in headers:
                 try:
-                    # Check if already expanded (aria-expanded or checking visibility of content box)
+                    header_text = (await header.inner_text()).strip()
                     span = await header.query_selector("span[aria-expanded]")
                     expanded = await span.get_attribute("aria-expanded") == "true" if span else False
                     
                     if not expanded:
                         await header.click()
-                        await asyncio.sleep(0.5) # Fast expansion
+                        await asyncio.sleep(0.8)
                     
-                    # Find the corresponding content box
-                    # Usually next sibling or child depending on Ant Design version
-                    # Let's just get the text after click
                     text = await page.evaluate('''(header) => {
-                        const panel = header.closest('.ant-collapse-item');
-                        if (panel) {
-                            const body = panel.querySelector('.ant-collapse-content-box');
-                            return body ? body.innerText : "";
-                        }
-                        return "";
+                        const item = header.closest('.ant-collapse-item');
+                        if (!item) return "";
+                        const contentBox = item.querySelector('.ant-collapse-content');
+                        return contentBox ? contentBox.innerText : "";
                     }''', header)
                     
                     if text.strip():
-                        header_text = await header.inner_text()
                         content_parts.append(f"### {header_text}\n{text}")
+                        # --- PARTICIPATION FIX ---
+                        if any(x in header_text.lower() for x in ["katılım", "nasil faydalanirim", "satın alma"]):
+                            participation_text += f"\n[{header_text}]: {text}"
+
                 except Exception as ex:
                     print(f"         ⚠️ Error expanding section: {ex}")
 
-            # 4. Fallback search for text if no accordions found
-            if not content_parts:
-                raw_text = await page.evaluate("document.body.innerText")
-            else:
-                raw_text = "\n\n".join(content_parts)
+            raw_text = "\n\n".join(content_parts) if content_parts else await page.evaluate("document.body.innerText")
+            
+            # Append explicit participation info for AI
+            if participation_text:
+                raw_text += f"\n\n--- ÖNEMLİ KATILIM BİLGİLERİ ---\n{participation_text}"
 
-            # 5. Image Extraction
-            image_url = await page.evaluate('''() => {
-                const img = document.querySelector('img[class*="campaign-hero"], .campaign-detail img, main img');
-                return img ? img.src : null;
-            }''')
-
-            # 6. AI Parsing
+            # AI Parsing
             print(f"      🧠 Sending to AI Parser...")
             ai_data = self.parser.parse_campaign_data(
                 raw_text=raw_text,
@@ -215,6 +232,10 @@ class TurkcellScraper:
                 bank_name="turkcell",
                 card_name="Turkcell"
             )
+            
+            # Explicitly set image if metadata extraction missed it or picked logo
+            if image_url and (not ai_data.get('image_url') or 'logo' in ai_data.get('image_url', '').lower()):
+                ai_data['image_url'] = image_url
             
             if not ai_data:
                 print(f"      ❌ AI parsing failed for {url}")

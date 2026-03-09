@@ -6,9 +6,43 @@ on:
   workflow_dispatch:
     inputs:
       scraper:
-        description: 'Çalıştırılacak scraper (Örn: isbankasi_maximiles) veya hepsi için "all" yazın'
-        required: false
+        description: 'Çalıştırılacak scraper'
+        required: true
         default: 'all'
+        type: choice
+        options:
+          - all
+          - akbank_axess
+          - akbank_business
+          - akbank_free
+          - akbank_wings
+          - albaraka
+          - americanexpress
+          - chippin
+          - denizbank
+          - dunyakatilim
+          - enpara
+          - garanti_bonus
+          - garanti_milesandsmiles
+          - garanti_shopandfly
+          - isbankasi_genc
+          - isbankasi_maximiles
+          - isbankasi_maximum
+          - kuveytturk
+          - masterpass
+          - paraf
+          - paraf_genc
+          - param
+          - qnb
+          - teb
+          - turkcell
+          - turkiyefinans
+          - vakifbank
+          - yapikredi_adios
+          - yapikredi_crystal
+          - yapikredi_play
+          - yapikredi_world
+          - ziraat
       limit:
         description: 'Çekilecek max kampanya sayısı (Sadece İşbankası için desteklenir, boş bırakılırsa limitsiz)'
         required: false

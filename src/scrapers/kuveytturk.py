@@ -140,43 +140,76 @@ class KuveytTurkScraper:
         try:
             await page.goto(self.CAMPAIGNS_URL, wait_until="networkidle", timeout=60000)
             
-            # Click "Daha Fazla Göster" loop
-            max_clicks = 15
-            for i in range(max_clicks):
+            # 1. Wait for regular items
+            await page.wait_for_selector(".campaign-card, a[href*='/kampanyalar/']", timeout=30000)
+
+            # Click "Daha Fazla Göster" loop - Persistent until items stop increasing
+            click_count = 0
+            while True:
                 try:
-                    # Scroll to bottom to reveal button
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    await asyncio.sleep(2)
+                    # Count current unique campaign URLs
+                    current_items = await page.evaluate('''() => {
+                        const links = Array.from(document.querySelectorAll("a[href*='/kampanyalar/']"));
+                        const unique = new Set(links.map(a => a.href).filter(h => !h.includes('biten-kampanyalar')));
+                        return unique.size;
+                    }''')
+                    print(f"      📊 Current unique campaigns visible: {current_items}")
                     
-                    button = page.locator(".show-more:visible")
+                    button = page.locator(".show-more")
                     if await button.count() > 0:
-                        print(f"      👇 Clicking 'Daha Fazla Göster' ({i+1})...")
-                        await button.click()
-                        await asyncio.sleep(3) # Heavy page, wait more
+                        last_item_count = current_items
+                        
+                        # Use standard CSS selector for evaluate
+                        await page.evaluate('''() => {
+                            const btn = document.querySelector('.show-more');
+                            if (btn) btn.click();
+                        }''')
+                        
+                        click_count += 1
+                        print(f"      👇 Clicked 'Daha Fazla Göster' ({click_count})...")
+                        
+                        # Scroll to bottom to trigger JS
+                        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                        
+                        # Wait for count to increase
+                        try:
+                            await page.wait_for_function(f"document.querySelectorAll('.campaign-card').length > {last_item_count}", timeout=8000)
+                        except:
+                            print("      ⏳ Wait for new items timed out (proceeding)...")
+                        
+                        await asyncio.sleep(2) 
                     else:
-                        print("      ✨ No more 'Load More' button found.")
+                        print(f"      ✨ Pagination finished. Total clicks: {click_count}")
                         break
+                    
+                    if click_count > 60: break
                 except Exception as b_err:
+                    print(f"      ⚠️ Pagination interaction issue: {b_err}")
                     break
 
             # Extract Links
             content = await page.content()
             soup = BeautifulSoup(content, "html.parser")
-            campaign_items = soup.find_all("a", href=re.compile(r'^/kampanyalar/[a-zA-Z0-9-]+$'))
-
-            for a in campaign_items:
-                href = a.get("href")
-                if not href: continue
-                
-                full_url = urljoin(self.BASE_URL, href)
-                
-                # Check for "expired" indicators in parent text or class
-                parent = a.find_parent()
-                parent_text = parent.get_text() if parent else ""
-                
-                if any(x in href.lower() for x in ["/arsiv", "/gecmis", "/biten-kampanyalar"]):
+            
+            # Robust extraction - filter duplicates early
+            potential_urls = set()
+            all_a = soup.find_all("a", href=True)
+            for a in all_a:
+                href = a.get("href", "")
+                if "/kampanyalar/" in href and "/biten-kampanyalar" not in href:
+                    full_url = urljoin(self.BASE_URL, href)
+                    potential_urls.add(full_url)
+            
+            print(f"      🎯 Found {len(potential_urls)} unique campaign links.")
+            
+            for full_url in potential_urls:
+                # Check for "expired" indicators in URL
+                if any(x in full_url.lower() for x in ["/arsiv", "/gecmis"]):
                     expired_urls.add(full_url)
                     continue
+                
+                # For Kuveyt Turk, we consider them active unless in /biten-kampanyalar (already filtered)
+                active_urls.add(full_url)
                 
                 if any(x in parent_text.lower() for x in ["sona erdi", "bitmiştir", "geçmiş"]):
                     expired_urls.add(full_url)
