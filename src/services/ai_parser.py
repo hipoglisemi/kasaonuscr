@@ -143,8 +143,22 @@ BANK_RULES = {
     - 🚨 FORMAT: SUMMARIZE into 5-6 clear bullet points.
     - 🚨 CONTENT: MUST include numeric limits (max earners, min spend) and dates.
     - Avoid long paragraphs. Use concise language.
-"""
-,
+""",
+    'kuveyt türk': """
+🚨 KUVEYT TÜRK (SAĞLAM KART) SPECIFIC RULES:
+- TERMINOLOGY: "Altın Puan". 1 Altın Puan = 1 TL.
+- ELIGIBLE CARDS (cards):
+    - 🚨 STRICT: Extract all cards from the text (usually the 2nd bullet point in details).
+    - Keywords: "Sağlam Kart", "Sağlam Kart Kampüs", "Sağlam Kart Genç", "Miles & Smiles Kuveyt Türk Kredi Kartı", "Özel Bankacılık World Elite Kart", "Tüzel Kartlar".
+    - Include "sanal ve ek kartlar" if mentioned.
+- PARTICIPATION (participation):
+    - 🚨 PRIORITY: Check for SMS keywords (e.g. "KATIL TROYRAMAZAN") and the short number (e.g. 2044).
+    - If "otomatik" or "katılım gerektirmez" is mentioned, use "Kampanya otomatik katılımlıdır."
+- CONDITIONS (conditions):
+    - 🚨 DETAYLI AMA NET: 'KOŞULLAR VE DETAYLAR' başlığı altındaki kritik maddeleri al.
+    - 🚨 TEMİZLİK: Tarih, kart listesi ve katılım yöntemini BURADA TEKRARLAMA. Sadece harcama sınırları, sektör kısıtlamaları ve hak kazanım detaylarını yaz.
+    - Minimum harcama (1.250 TL), maksimum ödül (250 TL) gibi kritik sınırları MUTLAKA dahil et.
+""",
     'halkbank': """
 🚨 HALKBANK (PARAF / PARAFLY) SPECIFIC RULES:
 - TERMINOLOGY: "ParafPara". 1 ParafPara = 1 TL.
@@ -607,11 +621,11 @@ VALID- SECTOR (CRITICAL):
 6. **CONDITIONS**: 
     - Koşulları **maksimum 6-7 madde** olarak özetle. Uzun yasal metinleri atla.
     - 🚨 İÇER: Minimum harcama eşiği, maksimum kazanç limiti, kampanya dışı işlem/kart türleri.
-    - 🚨 KESİN YASAK (REDUNDANCY FILTER): 'start_date', 'end_date', 'cards', 'participation' alanlarında zaten olan bilgiyi BURAYA ASLA TAAŞIMA. 
+    - 🚨 KESİN YASAK (REDUNDANCY FILTER): 'start_date', 'end_date', 'cards', 'participation' alanlarında zaten olan bilgiyi 'conditions' içine ASLA TAAŞIMA. 
         * ❌ "Kampanya 1-28 Şubat tarihlerindedir." (Yazma, zaten date alanında var)
         * ❌ "Maximum Kartlar dahildir." (Yazma, zaten cards alanında var)
         * ❌ "Maximum Mobil'den katılabilirsiniz." (Yazma, zaten participation alanında var)
-    - Bankaya özel kural varsa (yukarıda belirtilmişse) o kuralı öncelikle uygula.
+    - 🚨 ÖZETLEME: Koşullar listesi bir kural listesi olmalı, tüm sayfa içeriğinin kopyası olmamalı.
 7. **DATES (KRİTİK)**: 
     - Tüm tarihleri 'YYYY-MM-DD' formatında ver.
     - 🚨 YIL KURALI: Eğer yıl belirtilmemişse:
@@ -671,6 +685,15 @@ ANALİZ EDİLECEK METİN:
     
     def _normalize_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize and validate parsed data"""
+        
+        def _to_clean_string(val: Any, separator: str = "\n") -> str:
+            if not val: return ""
+            if isinstance(val, list):
+                # Filter out empty/nulls and join with specified separator
+                items = [str(x).strip() for x in val if x]
+                return separator.join(items) if len(items) > 1 else (items[0] if items else "")
+            return str(val).strip()
+
         normalized = {
             "title": data.get("title") or "Kampanya",
             "description": data.get("description") or "",
@@ -681,10 +704,10 @@ ANALİZ EDİLECEK METİN:
             "start_date": self._safe_date(data.get("start_date")),
             "end_date": self._safe_date(data.get("end_date")),
             "sector": data.get("sector") or "Diğer",
-            "brands": data.get("brands") or [],
-            "cards": data.get("cards") or [],
-            "participation": data.get("participation") or "Detayları İnceleyin",
-            "conditions": data.get("conditions") or []
+            "brands": data.get("brands") or [], # Brands can stay list for DB mapping
+            "cards": _to_clean_string(data.get("cards"), separator=", "),
+            "participation": _to_clean_string(data.get("participation")),
+            "conditions": _to_clean_string(data.get("conditions"))
         }
         
         return normalized
