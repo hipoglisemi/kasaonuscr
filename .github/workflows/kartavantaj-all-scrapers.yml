@@ -102,16 +102,18 @@ jobs:
       run: |
         playwright install chromium --with-deps
 
+    - name: Create Vertex Key File
+      run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > vertex-key.json
+
     - name: Run Scraper
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.5-flash-lite' }}
-        USE_VERTEX_AI: ${{ secrets.USE_VERTEX_AI || 'True' }}
+        AI_PROVIDER: "vertex"
+        GEMINI_MODEL: "gemini-2.5-flash-lite"
+        USE_VERTEX_AI: "True"
         GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
-        GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
-        GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION || 'us-central1' }}
+        GOOGLE_APPLICATION_CREDENTIALS: "vertex-key.json"
         PYTHONPATH: ${{ github.workspace }}
         PYTHONUNBUFFERED: '1'
         DISPLAY: ':99'
