@@ -1,8 +1,4 @@
-// src/services/brandValidator.ts
-import * as dotenv from 'dotenv';
-dotenv.config();
-
-const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_KEY!;
+import { generateContent } from '../utils/genai';
 
 // Minimal sleep utility
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -91,31 +87,11 @@ ${contextSnippet.substring(0, 500)}
 `;
 
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
+        const responseText = await generateContent(prompt, 'gemini-2.5-flash-lite', {
+            generationConfig: {
+                temperature: 0.1
             }
-        );
-
-        // Handle 429 (rate limit)
-        if (response.status === 429 && retryCount < MAX_RETRIES) {
-            const retryDelay = BASE_DELAY_MS * Math.pow(2, retryCount);
-            console.log(`   ⏳ Rate limit hit, retrying in ${retryDelay}ms...`);
-            await sleep(retryDelay);
-            return validateBrand(brandName, contextSnippet, retryCount + 1);
-        }
-
-        if (!response.ok) {
-            throw new Error(`Gemini API error: ${response.status}`);
-        }
-
-        const data: any = await response.json();
-        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        });
 
         if (!responseText) {
             throw new Error('No response from Gemini');

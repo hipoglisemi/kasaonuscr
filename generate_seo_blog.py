@@ -2,7 +2,6 @@ import os
 import random
 import time
 import psycopg2
-import google.generativeai as genai
 from dotenv import load_dotenv
 from slugify import slugify
 
@@ -14,15 +13,36 @@ DB_URL = os.getenv("DATABASE_URL")
 if not DB_URL:
     raise ValueError("DATABASE_URL must be set in .env")
 
-# Setup Gemini API (using the first key or main key)
-GEMINI_KEY = os.getenv("GEMINI_API_KEY_1") or os.getenv("GEMINI_API_KEY")
-if not GEMINI_KEY:
-    raise ValueError("Gemini API key is missing in .env")
+# Setup Gemini API (using Vertex AI or legacy fallback)
+from google import genai as _genai_sdk
+_GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+_use_vertex_ai = os.getenv("USE_VERTEX_AI", "False").lower() == "true"
 
-genai.configure(api_key=GEMINI_KEY)
+if _use_vertex_ai:
+    _project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    _location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    _credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    
+    if not _project_id:
+        raise ValueError("USE_VERTEX_AI is True but GOOGLE_CLOUD_PROJECT is not set.")
+        
+    if _credentials_path and os.path.exists(_credentials_path):
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _credentials_path
+        
+    genai_client = _genai_sdk.Client(
+        vertexai=True,
+        project=_project_id,
+        location=_location
+    )
+    print(f"[DEBUG] Blog AI initialized via Vertex AI (Project: {_project_id}).")
+else:
+    _gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_1")
+    if not _gemini_key:
+        raise ValueError("No Gemini API key found in .env")
+    genai_client = _genai_sdk.Client(api_key=_gemini_key)
+    print(f"[DEBUG] Blog AI initialized via AI Studio Key.")
 
-# Use our fast & lightweight model
-MODEL_NAME = "gemini-2.5-flash" # Note: 'gemini-2.5-flash-lite' can be used if accessible, falling back to flash for stability
+MODEL_NAME = _GEMINI_MODEL_NAME
 
 # Topic ideas to randomly select from
 TOPICS = [
@@ -69,8 +89,10 @@ def generate_seo_article(topic):
     5. Yanıt olarak SADECE makalenin HTML kodunu ver.
     """
     
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
-    response = model.generate_content(prompt)
+    response = genai_client.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt
+    )
     
     html_content = response.text.strip()
     
@@ -88,8 +110,10 @@ def generate_meta_description(topic, html_content):
     İçeriğe tıklatma (Call to Action) duygusu barındırsın. Yanıt olarak SADECE meta açıklamasını ver.
     Konu: {topic}
     """
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
-    response = model.generate_content(prompt)
+    response = genai_client.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt
+    )
     return response.text.strip()
 
 def save_to_database(topic, html_content, meta_description, image_url):

@@ -1,18 +1,11 @@
-// src/services/aiAutoFix.ts
-// AI Auto-Fix Engine: Generates patches for quality issues with confidence scores
-
 import { createClient } from '@supabase/supabase-js';
 import * as crypto from 'crypto';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
+import { generateContent } from '../utils/genai';
 
 const supabase = createClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_ANON_KEY!
 );
-
-const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_KEY!;
 const EXTRACTOR_VERSION = '2.0'; // Increment when extraction logic changes
 
 interface AiFixResult {
@@ -55,65 +48,24 @@ function generateCacheKey(snippet: string, issueType: string): string {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function callGeminiAPI(prompt: string, retryCount: number = 0): Promise<any> {
-    const MAX_RETRIES = 4;
-    const BASE_DELAYS = [2000, 5000, 12000, 25000]; // Exponential backoff
-
+async function callGeminiAPI(prompt: string): Promise<any> {
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
+        const text = await generateContent(prompt, 'gemini-2.5-flash-lite', {
+            generationConfig: {
+                temperature: 0.1
             }
-        );
+        });
 
-        // Handle rate limit (429)
-        if (response.status === 429) {
-            if (retryCount >= MAX_RETRIES) {
-                throw new Error(`RATE_LIMITED_429: Max retries (${MAX_RETRIES}) exceeded`);
-            }
-
-            // Exponential backoff with jitter
-            const baseDelay = BASE_DELAYS[retryCount] || 25000;
-            const jitter = Math.random() * 500;
-            const delay = baseDelay + jitter;
-
-            console.log(`   ⏳ Rate limited (429), retry ${retryCount + 1}/${MAX_RETRIES} after ${Math.round(delay)}ms...`);
-            await sleep(delay);
-
-            return callGeminiAPI(prompt, retryCount + 1);
-        }
-
-        if (!response.ok) {
-            throw new Error(`Gemini API error: ${response.status}`);
-        }
-
-        const data: any = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error('No response from Gemini');
 
-        // Extract JSON from response
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
             throw new Error('No JSON found in AI response');
         }
 
-        // Add pacing between successful calls (1.5s)
-        await sleep(1500);
-
         return JSON.parse(jsonMatch[0]);
-
     } catch (error: any) {
-        // If it's a rate limit error and we've exhausted retries, throw with special marker
-        if (error.message?.includes('RATE_LIMITED_429')) {
-            throw error;
-        }
-
-        // For other errors, throw immediately
+        console.error('   ❌ AI call failed:', error.message);
         throw error;
     }
 }

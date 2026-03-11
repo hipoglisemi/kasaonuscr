@@ -1,9 +1,7 @@
-// src/utils/aiCalculator.ts
 import { supabase } from './supabase';
+import { generateContent } from './genai';
 
-const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_KEY!;
 const MODEL_NAME = 'gemini-2.5-flash-lite';
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
 
 interface MasterData {
     categories: string[];
@@ -41,9 +39,6 @@ const DISABLE_AI_COMPLETELY = false; // Enabled for advanced calculation feature
  */
 export async function calculateCampaignBonus(campaignText: string) {
     if (DISABLE_AI_COMPLETELY) return null;
-    if (!GEMINI_API_KEY) {
-        throw new Error("GOOGLE_GEMINI_KEY bulunamadı. Lütfen .env dosyanızı kontrol edin.");
-    }
 
     const prompt = `
     Aşağıdaki banka kampanya metnini analiz et ve matematiksel hesaplamaları Python kullanarak doğrula.
@@ -72,45 +67,18 @@ export async function calculateCampaignBonus(campaignText: string) {
     }`;
 
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                tools: [{ code_execution: {} }],
-                generationConfig: {
-                    temperature: 0.1
-                }
-            })
+        const resultText = await generateContent(prompt, MODEL_NAME, {
+            generationConfig: {
+                temperature: 0.1
+            },
+            tools: [{ code_execution: {} }]
         });
 
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`Gemini API error: ${response.status} - ${errorBody}`);
-        }
-
-        const data: any = await response.json();
-        const candidates = data.candidates?.[0]?.content?.parts || [];
-
-        // Find the part containing the JSON result (looking through all parts)
-        for (const part of candidates) {
-            // Check in normal text part
-            if (part.text && part.text.includes('{')) {
-                const jsonMatch = part.text.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    try {
-                        return JSON.parse(jsonMatch[0]);
-                    } catch (e) { /* continue */ }
-                }
-            }
-            // Check in code execution result
-            if (part.codeExecutionResult && part.codeExecutionResult.output) {
-                const jsonMatch = part.codeExecutionResult.output.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    try {
-                        return JSON.parse(jsonMatch[0]);
-                    } catch (e) { /* continue */ }
-                }
+        // resultText already contains the string from candidates or code execution in our utility
+        if (resultText && resultText.includes('{')) {
+            const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return JSON.parse(jsonMatch[0]);
             }
         }
 
@@ -157,21 +125,12 @@ ${rawHtml.substring(0, 2000)}
 }`;
 
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature: 0.1,
-                    response_mime_type: "application/json"
-                }
-            })
+        const text = await generateContent(prompt, MODEL_NAME, {
+            generationConfig: {
+                temperature: 0.1,
+                response_mime_type: "application/json"
+            }
         });
-
-        if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
-        const data: any = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!text) throw new Error('No response from Gemini');
         const result = JSON.parse(text.replace(/```json|```/g, '').trim());

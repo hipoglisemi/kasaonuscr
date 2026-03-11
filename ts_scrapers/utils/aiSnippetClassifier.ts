@@ -28,11 +28,15 @@ export function extractSnippetForAI(title: string, content: string): string {
  * Classify sector using minimal AI prompt (snippet-only)
  * Returns only sector_slug to minimize tokens
  */
+import { generateContent } from './genai';
+
+/**
+ * Classify sector using minimal AI prompt (snippet-only)
+ * Returns only sector_slug to minimize tokens
+ */
 export async function classifySectorWithAI(
-    snippet: string,
-    geminiApiKey: string
+    snippet: string
 ): Promise<{ sector_slug: string, confidence: number }> {
-    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
     const prompt = `Classify this Turkish credit card campaign into EXACTLY ONE sector slug.
     
@@ -45,27 +49,14 @@ Campaign:
 ${snippet}`;
 
     try {
-        const response = await fetch(`${GEMINI_API_URL}?key=${geminiApiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
-                }],
-                generationConfig: {
-                    temperature: 0.1,
-                    maxOutputTokens: 15
-                }
-            })
+        const text = await generateContent(prompt, 'gemini-2.5-flash-lite', {
+            generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 15
+            }
         });
 
-        if (!response.ok) {
-            console.error('AI classification failed:', response.statusText);
-            return { sector_slug: 'diger', confidence: 0 };
-        }
-
-        const data = await response.json() as any;
-        const sectorSlug = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toLowerCase() || 'diger';
+        const sectorSlug = text?.trim().toLowerCase() || 'diger';
 
         const validSlugs = [
             'market-gida', 'akaryakit', 'giyim-aksesuar', 'restoran-kafe',

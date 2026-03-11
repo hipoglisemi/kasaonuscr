@@ -49,39 +49,45 @@ BANK_RULES = {
 - TERMINOLOGY: 
     - For Axess/Free/Akbank Kart: Uses "chip-para" instead of "puan". 1 chip-para = 1 TL.
     - For Wings: Uses "Mil" or "Mil Puan". 1 Mil = 0.01 TL (unless specified as '1 TL değerinde').
-- PARTICIPATION: Primary method is "Jüzdan" app. Always look for "Jüzdan'dan Hemen Katıl" button.
+- PARTICIPATION: Primary method is "Jüzdan" app. Always look for "Jüzdan'dan Hemen Katıl" button. If not found, look for "Akbank Axess POS" instructions.
 - SMS: Usually 4566. SMS keyword is usually a single word (e.g., "A101", "TEKNOSA").
-- REWARD: If it says "8 aya varan taksit", it's an installment campaign. Earning: "Taksit İmkanı".
+- REWARD: If it says "8 aya varan taksit", it's an installment campaign. Earning: "Taksit İmkanı". 🚨 ASLA "Detayları İnceleyin" yazma.
 - ELIGIBLE CARDS:
     - 🚨 TITLE TRAP: Even if title says "Axess'e Özel", check footer for "Axess, Wings, Free... dahildir".
+    - ❌ KESİN YASAK: Asla "Kampanyaya Dahil Kartlar" yazma. Eğer kart listesi bulamazsan alanı BOŞ BIRAK.
     - "Ticari kartlar" / "Business" / "KOBİ" = ["Axess Business", "Wings Business"].
     - "Bank’O Card Axess" = ["Bank’O Card Axess"].
     - "Akbank Kart" / "Bankamatik" = ["Akbank Kart"].
     - If it says "tüm Akbank kredi kartları", list all relevant consumer cards.
-    - 🚨 CONDITIONS RULES: NEVER mention card names in 'conditions' list. They belong ONLY in 'cards' field.
+    - ⚠️ KESİN YASAK: Kart isimlerini asla 'conditions' (koşullar) listesine yazma. Sadece 'cards' alanına yaz.
+- 🚨 AKBANK REDUNDANCY ALERT (CRITICAL):
+    - Akbank metinleri tarih ve kart bilgisini çok tekrar eder. 
+    - 'conditions' listesine ASLA "1-31 Mart", "Axess kart", "Jüzdan" gibi bilgileri yazma.
+    - Koşullar SADECE teknik kurallar içermeli (örn: "POS terminali zorunluluğu", "İndirim limiti").
+- PARTICIPATION (REDUNDANCY):
+    - 🚨 YASAK: "Juzdan uygulama üzerinden katılabilirsiniz." gibi jenerik metinleri tek başına yazma. Eğer butonda "Hemen Katıl" yazıyorsa "Juzdan'dan Hemen Katıl butonuna tıklayın" gibi somutlaştır.
 """,
     'yapı kredi': """
 🚨 YAPI KREDI (WORLD) SPECIFIC RULES:
 - TERMINOLOGY: "Worldpuan" is the currency.
     - ⚠️ IMPORTANT: "TL Worldpuan" means the value is in TL. If it says "100 TL Worldpuan", earning is "100 TL Worldpuan".
-    - If it says "1000 Worldpuan", check context. Usually 1 Worldpuan = 0.005 TL. prefer explicitly stated TL value if available.
 - ELIGIBLE CARDS:
     - Keywords: "Yapı Kredi Kredi Kartları", "Worldcard", "Opet Worldcard", "Gold", "Platinum", "Business", "World Eko", "Play".
-    - "Bireysel kredi kartları" implies all consumer cards.
-    - "Business" / "Ticari" implies World Business.
 - PARTICIPATION:
-    - "World Mobil" or "Yapı Kredi Mobil" is the primary method. Look for "Hemen Katıl", "Katıl" button.
-    - SMS: Look for SMS keywords sent to 4454.
+    - "World Mobil" or "Yapı Kredi Mobil" is the primary method.
+- 🚨 REDUNDANCY ALERT: DO NOT repeat card names or dates in 'conditions'.
 """,
     'garanti': """
-🚨 GARANTI BBVA/BONUS SPECIFIC RULES:
-- TERMINOLOGY: "Bonus" is the currency. 1 Bonus = 1 TL. "Mil" for Shop&Fly/Miles&Smiles.
-- ELIGIBLE CARDS:
-    - Keywords: "Bonus", "Bonus Gold", "Bonus Platinum", "Bonus American Express", "Shop&Fly", "Miles&Smiles", "Flexi", "Money Bonus".
-    - "Ticari" means "Bonus Business".
-- PARTICIPATION:
-    - Primary: "BonusFlaş" app. Look for "Hemen Katıl" button in app.
-    - SMS: Often 3340.
+🚨 GARANTI BBVA / BONUS / MILES&SMILES SPECIFIC RULES:
+- TERMINOLOGY: "Bonus" (Bonus/Flexi), "Mil" (Miles&Smiles/Shop&Fly).
+- ELIGIBLE CARDS (cards):
+    - 🚨 STRICT EXTRACTION: Metindeki kart isimlerini TAM olarak çıkar.
+    - Miles&Smiles: "Miles & Smiles Garanti BBVA", "Miles & Smiles Garanti BBVA Business".
+    - Shop&Fly: "Shop&Fly", "Shop&Fly Business".
+    - Bonus: "Bonus", "Bonus Gold", "Bonus Platinum", "Bonus American Express", "Bonus Business", "Bonus Genç", "Bonus Flexi", "Paracard Bonus".
+    - ❌ YASAK: "Kampanyaya Dahil Kartlar" gibi başlıkları ASLA kart listesine yazma. Sadece kartın kendi ismini yaz.
+- PARTICIPATION: "BonusFlaş" app is primary. Look for "HEMEN KATIL" instructions.
+- 🚨 REDUNDANCY ALERT: DO NOT repeat card names, dates, or participation methods (e.g., BonusFlaş) in 'conditions'.
 """,
     'işbankası': """
 🚨 IS BANKASI/MAXIMUM/MAXIMİLES SPECIFIC RULES:
@@ -100,8 +106,9 @@ BANK_RULES = {
     - 🚨 STRICT APP NAMES: ONLY use "Maximum Mobil", "İşCep", or "Pazarama".
     - ⛔ NEGATIVE CONSTRAINT: NEVER use "World Mobil", "Jüzdan", "BonusFlaş", "Yapı Kredi". If you see these, it's a hallucination or cross-promotion; ignore them.
 - 🚨 DISCOUNT CODES: If there is an "İndirim Kodu" (e.g., TRBAN25, TROY2024), **MUTLAKA** both 'conditions' listesine ekle hem de 'description' içinde belirt.
+- 🚨 REDUNDANCY ALERT: DO NOT repeat card names, dates, or participation methods (e.g., Maximum Mobil, İşCep, Pazarama) in 'conditions'.
 - CONDITIONS (SUMMARY MODE):
-    - ✔️ ÖZETLE: Maksimum 5-6 madde. Uzun yasal metinleri, tekrar eden kartım bilgilerini ve işlem türü sayımlarını atlat.
+    - ✔️ ÖZETLE: Maksimum 5-6 madde. Uzun yasal metinleri, tekrar eden kart bilgilerini ve işlem türü sayımlarını atlat.
     - 🚨 İÇERİK: Sadece şunları yaz:
       * Minimum harcama eşiği ("2.000 TL harcamaya 200 MaxiMil")
       * Maksimum kazanç limiti ("Maks. 1.500 MaxiMil")
@@ -368,22 +375,51 @@ BANK_RULES = {
 # ── AI Provider Configuration ──────────────────────────────────────────────
 from google import genai as _genai_sdk
 
-_GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
-_gemini_key = os.getenv("GEMINI_API_KEY")
+_GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+_use_vertex_ai = os.getenv("USE_VERTEX_AI", "False").lower() == "true"
 
-if not _gemini_key:
-    # try fallback
-    for i in range(1, 20):
-        k = os.getenv(f"GEMINI_API_KEY_{i}")
-        if k:
-            _gemini_key = k
-            break
+if _use_vertex_ai:
+    _project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    _location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    _credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    _credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    
+    if not _project_id:
+        raise ValueError("USE_VERTEX_AI is True but GOOGLE_CLOUD_PROJECT is not set.")
+        
+    # Configure via Service Account JSON STRING (Ideal for GitHub Secrets)
+    if _credentials_json:
+        import tempfile
+        # Write to a temp file and set the env var for the SDK
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp:
+            temp.write(_credentials_json)
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp.name
+            print(f"[DEBUG] Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON string.")
+    # Fallback to file path
+    elif _credentials_path and os.path.exists(_credentials_path):
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _credentials_path
+        print(f"[DEBUG] Using credentials from file: {_credentials_path}")
+        
+    _gemini_client = _genai_sdk.Client(
+        vertexai=True,
+        project=_project_id,
+        location=_location
+    )
+    print(f"[DEBUG] Gemini initialized via Vertex AI (Project: {_project_id}, Model: {_GEMINI_MODEL_NAME}).")
+else:
+    _gemini_key = os.getenv("GEMINI_API_KEY")
+    if not _gemini_key:
+        for i in range(1, 20):
+            k = os.getenv(f"GEMINI_API_KEY_{i}")
+            if k:
+                _gemini_key = k
+                break
 
-if not _gemini_key:
-    raise ValueError("No GEMINI_API_KEY found. Set GEMINI_API_KEY in .env")
+    if not _gemini_key:
+        raise ValueError("No GEMINI_API_KEY found. Set GEMINI_API_KEY in .env")
 
-_gemini_client = _genai_sdk.Client(api_key=_gemini_key)
-print(f"[DEBUG] Gemini initialized (model: {_GEMINI_MODEL_NAME}).")
+    _gemini_client = _genai_sdk.Client(api_key=_gemini_key)
+    print(f"[DEBUG] Gemini initialized via AI Studio Key (Model: {_GEMINI_MODEL_NAME}).")
 # ────────────────────────────────────────────────────────────────────────────
 
 
@@ -487,16 +523,7 @@ class AIParser:
     def _clean_text(self, text: str) -> str:
         """
         Clean and normalize text before sending to AI.
-
-        Strategy (token optimization):
-        0. Remove noisy HTML elements (script, style, footer) if text is raw HTML
-        1. Split into lines and drop boilerplate lines:
-           - Very short lines (< 40 chars) → likely nav links, breadcrumbs, footer items
-           - Lines that look like pure navigation / copyright noise
-           - Duplicate lines
-        2. Rejoin and apply a tighter character limit (6 000 chars instead of 10 000).
-
-        Expected result: ~50-55 % fewer input tokens with no loss of campaign content.
+        Relaxed strategy to prevent stripping critical reward/participation data.
         """
         if not text:
             return ""
@@ -504,25 +531,20 @@ class AIParser:
         # ── Step 0: HTML parsing and decomposing ─────────────────────
         try:
             from bs4 import BeautifulSoup
-            # Parse as HTML (if it's plain text, soup will just return it safely)
             soup = BeautifulSoup(text, 'html.parser')
-            unwanted_tags = ['script', 'style', 'footer', 'nav', 'header', 'noscript', 'meta', 'iframe', 'svg', 'button']
+            # Keeping 'button' and 'a' text as they often contain participation triggers
+            unwanted_tags = ['script', 'style', 'footer', 'nav', 'header', 'noscript', 'meta', 'iframe', 'svg']
             for tag in soup(unwanted_tags):
                 tag.decompose()
-            # Extract clean text, separating blocks with newlines
             text = soup.get_text(separator='\n', strip=True)
         except Exception as e:
             print(f"[WARN] BeautifulSoup parsing failed in _clean_text: {e}")
 
         # ── Step 1: line-level boilerplate filter ────────────────────────────
-        # Common Turkish nav/footer noise patterns  (case-insensitive check)
         _NAV_PATTERNS = re.compile(
             r'^(ana sayfa|şubeler|iletişim|bize ulaşın|hakkımızda|kvkk|gizlilik|'
             r'çerez|copyright|tüm hakları|instagram|twitter|facebook|linkedin|'
-            r'youtube|bizi takip|duyurular|haberler|aktif kampanya|kampanyalarımız|'
-            r'kampanyalar|ürünler|bireysel|kurumsal|faq|sıkça sorulan|yardım|'
-            r'site haritası|kariyer|basvuru|başvuru|indir|download|appstore|'
-            r'google play|app store|playstore)$',
+            r'youtube|bizi takip|site haritası|kariyer|başvuru|indir|download)$',
             re.IGNORECASE
         )
 
@@ -531,12 +553,12 @@ class AIParser:
         filtered: list = []
         for line in lines:
             stripped = line.strip()
-            # Drop blank or very short lines (probable single menu items)
+            # Relaxed length check: Keep anything over 5 chars (e.g. "100 TL", "SMS")
             if len(stripped) < 40:
                 lower = stripped.lower()
-                if _NAV_PATTERNS.match(lower) or len(stripped) < 15:
+                if _NAV_PATTERNS.match(lower) or len(stripped) < 5:
                     continue
-            # Drop exact duplicates
+            # Drop exact duplicates to save tokens
             if stripped in seen:
                 continue
             seen.add(stripped)
@@ -544,14 +566,14 @@ class AIParser:
 
         text = '\n'.join(filtered)
 
-        # ── Step 2: normalise whitespace + remove non-content characters ──────
-        text = re.sub(r'[ \t]+', ' ', text)           # collapse spaces/tabs
-        text = re.sub(r'\n{3,}', '\n\n', text)         # max 2 blank lines
+        # ── Step 2: normalise whitespace ────────────────────────────
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
         text = re.sub(r'[^\w\s\.,;:!?%₺\-/()İıĞğÜüŞşÖöÇç\n]', ' ', text)
 
-        # ── Step 3: tighter length limit (was 10 000) ────────────────────────
-        if len(text) > 6000:
-            text = text[:6000]
+        # ── Step 3: Length limit (reverting to a safer 8000) ──────────
+        if len(text) > 8000:
+            text = text[:8000]
 
         return text.strip()
     
@@ -620,50 +642,70 @@ VALID- SECTOR (CRITICAL):
 1. **DİL**: Tamamı TÜRKÇE olmalı.
 2. **BRANDS**: Metinde geçen markayı TAM OLARAK al. 
     - 🚨 ÖNEMLİ YASAK: Asla kampanya sahibi bankayı (İş Bankası, Akbank, Garanti vb.) veya kart programını (Maximum, Axess, Bonus, World, Wings vb.) MARKA olarak ekleme. Sadece ortak markayı (ör. Trendyol, Migros, THY) ekle.
+    - 🚨 FORMAT KURALI: Marka veya kart isimlerini asla "P, a, r, a, f" veya "A, x, e, s, s" gibi her harfi virgülle ayrılmış şekilde yazma. Sadece tam ve okunabilir ismi yaz ("Paraf", "Axess").
     - Bilinmeyen marka varsa UYDURMA, metindeki ismini kullan.
 3. **SECTOR**: Yukarıdaki VALID SECTORS listesinden EN UYGUN olanı seç. Asla bu liste dışına çıkma.
 4. **MARKETING**: 'description' alanı MUTLAKA 2 cümle olmalı. Samimi ve kullanıcıyı teşvik edici olmalı.
+    - 🚨 KESİN YASAK: 'description' alanına tarih, kart veya katılım bilgisi ASLA EKLEME.
 5. **REWARD TEXT (PUNCHY)**: 
     - 'reward_text' kısmına en kısa ve çarpıcı ödülü yaz.
     - "Peşin fiyatına" gibi detayları yazma, sadece "150 TL Puan", "+4 Taksit", "%20 İndirim" yaz.
     - Eğer "100 TL Worldpuan" diyorsa "100 TL Worldpuan" yaz. (Değer + Tür)
-6. **CONDITIONS**: 
-    - Koşulları **maksimum 6-7 madde** olarak özetle. Uzun yasal metinleri atla.
-    - 🚨 İÇER: Minimum harcama eşiği, maksimum kazanç limiti, kampanya dışı işlem/kart türleri.
-    - 🚨 KESİN YASAK (REDUNDANCY FILTER): 'start_date', 'end_date', 'cards', 'participation' alanlarında zaten olan bilgiyi 'conditions' içine ASLA TAAŞIMA. 
-        * ❌ "Kampanya 1-28 Şubat tarihlerindedir." (Yazma, zaten date alanında var)
-        * ❌ "Maximum Kartlar dahildir." (Yazma, zaten cards alanında var)
-        * ❌ "Maximum Mobil'den katılabilirsiniz." (Yazma, zaten participation alanında var)
-    - 🚨 ÖZETLEME: Koşullar listesi bir kural listesi olmalı, tüm sayfa içeriğinin kopyası olmamalı.
-7. **DATES (KRİTİK)**: 
+6. **CONDITIONS (STRICT REDUNDANCY & BOILERPLATE REMOVAL)**: 
+    - 🚨 🚨 **YASAK**: Aşağıdaki alanlarda zaten olan bilgileri 'conditions' içine yazmak KESİNLİKLE YASAKTIR:
+        - 'start_date' ve 'end_date' (Örn: "Şubat ayı boyunca" yazma!)
+        - 'cards' (Örn: "Axess sahipleri" yazma!)
+        - 'participation' (Örn: "Jüzdan'dan katılın" yazma!)
+        - 'title' (Başlıkta olan bilgiyi tekrarlama!)
+    - 🚨 **JURIDICAL BOILERPLATE REMOVAL (ULTRA STRICT)**: Aşağıdaki jenerik metinleri KESİNLİKLE SİL:
+        - "Taksit sayısı ürün gruplarına göre yasal mevzuat çerçevesinde belirlenir."
+        - "Bireysel kredi kartlarıyla gerçekleştirilecek basılı ve külçe altın, kuyum, telekomünikasyon, akaryakıt, yemek, gıda, kozmetik vb. harcamalarda taksit uygulanamaz."
+        - "Yasal mevzuat gereği azami taksit sayısı..."
+        - "Kampanya farklı kampanyalarla birleştirilemez."
+    - ✅ SADECE SADECE KAMPANYAYA ÖZEL ŞARTLARI YAZ: "Maksimum 500 TL", "Harcama alt sınırı 2000 TL", "İade/İptal hariçtir".
+    - Eğer tüm sayfa içeriği zaten bu 4 alanda varsa 'conditions' boş (boş liste) olabilir. Gereksiz kalabalık yapma.
+
+7. **DATES**: 
     - Tüm tarihleri 'YYYY-MM-DD' formatında ver.
     - 🚨 YIL KURALI: Eğer yıl belirtilmemişse:
       * Bugünün tarihi: {current_date} (Yıl: {datetime.now().year}, Ay: {datetime.now().month})
       * Kampanya ayı < Bugünün ayı → Yıl: {datetime.now().year + 1}
       * Kampanya ayı >= Bugünün ayı → Yıl: {datetime.now().year}
-      * Örnek 1: Bugün 17 Şubat 2026. "1-28 Şubat" → 2026-02-01 ve 2026-02-28
-      * Örnek 2: Bugün 17 Mart 2026. "1-28 Şubat" → 2027-02-01 ve 2027-02-28
     - Sadece bitiş tarihi varsa, başlangıç tarihi olarak bugünü ({current_date}) al.
-    - "1-28 Şubat" gibi aralıklar için: 2026-02-01 ve 2026-02-28 (Yılı ekle).
 
-8. **KATILIM (PARTICIPATION)**:
-    - Metin içinde "SMS", "Mobil", "Jüzdan", "Katıl" gibi ifadeleri ara.
-    - 🚨 DOĞRULAMA: İş Bankası için ASLA "World Mobil" yazma. Metinde "World Mobil" geçse bile (ki bu bir hatadır), bunu "Maximum Mobil" olarak düzelt. Banka kurallarına (yukarıdaki) uy.
-    - Varsa tam talimatı yaz: "KAZAN yazıp 4455'e SMS gönderin" veya "Maximum Mobil üzerinden Katıl butonuna tıklayın".
-    - Yoksa boş bırakma, "Otomatik Katılım" veya metinde "Kampanya detaylarını inceleyin" diyorsa aynen bunu yaz. Tahmin yürütme.
+8. **KATILIM (PARTICIPATION)**: 
+    - 🚨 KRİTİK: SMS, Mobil, Uygulama, Katıl, Gönder gibi teknik katılım mekanizmalarını ara.
+    - 🚨 ULTRA YASAK: "Hemen faydalanabilirsiniz", "Detayları inceleyin", "Mobil uygulama üzerinden katılabilirsiniz" gibi anlamsız/jenerik metinleri ASLA yazma.
+    - Bulamadığında bankanın mobil uygulaması üzerinden katılımı vurgula (Örn: "BonusFlaş üzerinden Hemen Katıl butonuna tıklayarak katılın").
+    - 🚨 ÖZEL: Eğer katılım için "Rezervasyon", "Axess POS terminali" gibi teknik bir şart varsa bunu 'participation' alanına yaz.
+    - 🚨 DOĞRULAMA: İş Bankası için ASLA "World Mobil" yazma, "Maximum Mobil" olarak düzelt. Akbank için "Jüzdan", Garanti için "BonusFlaş", Yapı Kredi için "World Mobil" ifadelerini doğrula.
+    - Varsa tam talimatı yaz: "KAZAN yazıp 4455'e SMS gönderin" veya "Maximum Mobil üzerinden Hemen Katıl butonuna tıklayın".
+    - Yoksa ve metinde teknik bir detay bulunamıyorsa; bankanın mobil uygulaması üzerinden katılımı vurgula (Örn: "BonusFlaş üzerinden katılabilirsiniz").
 
-9. **HARCAMA-KAZANÇ KURALLARI (MATHEMATIC LOGIC)**:
-   - **discount**: SADECE "{{"N"}} Taksit" veya "+{{"N"}} Taksit"
-   - **reward_text**: 
-     - 🚨 YÜZDE + MAX LİMİT KURALI: "%10 (max 200TL)" formatında yaz.
-     - 🚨 PUAN: "100 TL Worldpuan" veya "500 Mil".
-     - 🚨 İNDİRİM: "200 TL İndirim".
-   - **min_spend**: Kampanyadan faydalanmak için (veya belirtilen ödülü kazanmak için) gereken minimum harcama tutarı. (Sayısal)
+9. **REWARD_TEXT**: 
+    - 🚨 ASLA YAZMA: "Detayları İnceleyin", "Hemen Faydalanın" gibi jenerik ifadeler yasaktır. 
+    - 🚨 SOURCE PRIORITY: Ödül metin içinde yoksa MUTLAKA BAŞLIKTAN (TITLE) çıkar (Örn: "3 Taksit", "%20 İndirim"). 
+    - Hiçbir somut değer bulamazsan "Kampanya Fırsatı" yaz.
+
+10. **PAZARLAMA ÖZETİ (MARKETING TEXT)**:
+    - 'ai_marketing_text' alanı için: Kampanyanın avantajını özetleyen, kullanıcıyı tıklamaya teşvik eden, emojisiz, samimi ve kısa bir cümle oluştur. (Örn: "Market harcamalarınızda 500 TL'ye varan puan kazanma fırsatını kaçırmayın!")
+    - Max 120 karakter.
+
+11. **HARCAMA-KAZANÇ KURALLARI (MATHEMATIC LOGIC)**:
+    - **discount**: SADECE "{{N}} Taksit" veya "+{{N}} Taksit"
+    - **reward_text**: 
+      - 🚨 YÜZDE + MAX LİMİT KURALI: "%10 (max 200TL)" formatında yaz.
+      - 🚨 PUAN: "100 TL Worldpuan" veya "500 Mil".
+      - 🚨 İNDİRİM: "200 TL İndirim".
+      - 🚨 ULTRA YASAK: "Detayları İnceleyin", "Hemen Faydalanın", "Kampanyaya Dahil Kartlar" gibi jenerik ifadeler yasaktır. 
+      - Metinde veya Başlıkta kampanya ödülü neyse onu yaz. Hiç bulamazsan ödülü "Kampanya Fırsatı" olarak belirt ama jenerik ibare kullanma. Bulunamayan her alanı BOŞ/NULL bırak, uydurma metin yazma.
+    - **min_spend**: Kampanyadan faydalanmak için gereken minimum harcama tutarı. (Sayısal)
 
 JSON Formatı:
 {{
   "title": "Kısa ve çarpıcı başlık",
-  "description": "2 cümlelik pazarlama metni",
+  "description": "2 cümlelik detaylı açıklama metni",
+  "ai_marketing_text": "Kısa ve davetkar pazarlama özeti",
   "reward_value": 0.0,
   "reward_type": "puan/indirim/taksit/mil",
   "reward_text": "150 TL Puan",
@@ -673,7 +715,7 @@ JSON Formatı:
   "sector": "Sektör Slug'ı",
   "brands": ["Marka1", "Marka2"],
   "cards": ["Kart1", "Kart2"],
-  "participation": "Katılım talimatı",
+  "participation": "Katılım talimatı (SMS/App)",
   "conditions": ["Madde 1", "Madde 2"]
 }}
 
@@ -716,17 +758,18 @@ ANALİZ EDİLECEK METİN:
         normalized = {
             "title": data.get("title") or "Kampanya",
             "description": data.get("description") or "",
+            "ai_marketing_text": data.get("ai_marketing_text") or "",
             "reward_value": self._safe_decimal(data.get("reward_value")),
             "reward_type": data.get("reward_type"),
-            "reward_text": data.get("reward_text") or "Detayları İnceleyin",
+            "reward_text": data.get("reward_text") or "Kampanya Fırsatı",
             "min_spend": self._safe_int(data.get("min_spend")),
             "start_date": self._safe_date(data.get("start_date")),
             "end_date": self._safe_date(data.get("end_date")),
             "sector": data.get("sector") or "Diğer",
             "brands": data.get("brands") or [],
-            "cards": _to_clean_list(data.get("cards")),       # LIST — scraper'lar ', '.join() yapıyor
+            "cards": _to_clean_list(data.get("cards")),
             "participation": _to_clean_string(data.get("participation")),
-            "conditions": _to_clean_list(data.get("conditions"))  # LIST — scraper'lar '\n'.join() yapıyor
+            "conditions": _to_clean_list(data.get("conditions"))
         }
         
         return normalized

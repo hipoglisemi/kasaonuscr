@@ -10,3 +10,7 @@ user_data/
 *.db
 *.sqlite3
 *.log
+node_modules/
+**/node_modules/
+vertex-key.json
+*.json_backup

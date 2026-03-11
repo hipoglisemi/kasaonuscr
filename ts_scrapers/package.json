@@ -21,6 +21,7 @@
     "scrape:chippin": "tsx src/scrapers/chippin/chippin.ts"
   },
   "dependencies": {
+    "@google-cloud/vertexai": "^1.10.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.39.0",
     "@upstash/redis": "^1.36.1",

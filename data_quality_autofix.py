@@ -70,11 +70,19 @@ def fetch_html(url: str) -> str:
         response = requests.get(url, headers=headers, timeout=15, verify=False)
         response.raise_for_status()
         
+        # Ensure correct encoding (often ISO-8859-9 or UTF-8 for Turkish sites)
+        if response.encoding == 'ISO-8859-1':
+            response.encoding = response.apparent_encoding
+            
         # Simple cleanup
         soup = BeautifulSoup(response.text, 'html.parser')
         for script in soup(["script", "style", "nav", "footer", "header"]):
             script.extract()
-        return soup.get_text(separator=' ', strip=True)
+        
+        # Remove multiple spaces and newlines
+        text = soup.get_text(separator=' ', strip=True)
+        text = re.sub(r'\s+', ' ', text)
+        return text
     except Exception as e:
         print(f"      ⚠️ Failed to fetch HTML for {url}: {e}")
         return ""
@@ -89,44 +97,102 @@ def run_autofix():
             # Find active campaigns with missing/poor descriptions, reward texts, or conditions
             # Skip any that have already been auto-corrected to avoid infinite loops for 'Diğer' sectors
             # Use eager loading to prevent N+1 query hangs
+            # Find active campaigns. 
+            # We check ALL active campaigns now to catch those marked auto_corrected but still having bad data (like generic participation)
             defective_campaigns = db.query(Campaign).options(
                 joinedload(Campaign.sector),
                 joinedload(Campaign.brands)
             ).filter(
-                Campaign.is_active == True,
-                Campaign.auto_corrected == False
+                Campaign.is_active == True
             ).all()
             print(f"   📊 Checking {len(defective_campaigns)} active campaigns for defects.")
+            
+            SCAN_ONLY = False # If True, will only count defects without fixing
+            FORCE_ALL = False # If True, will fix all active campaigns regardless of status
             
             to_fix_ids = []
             for c in defective_campaigns:
                 is_defective = False
                 reasons = []
                 
+                # New detection pattern: character-level corruption (e.g., 'P, a, r, a, f')
+                corrupted_regex = re.compile(r'([a-zA-ZçğıüşöÇĞİÜŞÖ0-9], ){2,}')
+                generic_participation = "Mobil uygulama üzerinden veya banka kanallarından kampanya detaylarındaki talimatları izleyerek katılabilirsiniz."
+                useless_participations = [
+                    generic_participation, 
+                    "Hemen faydalanabilirsiniz.", 
+                    "Hemen faydalanabilirsiniz", 
+                    "Kampanya dahilinde.",
+                    "Detayları İnceleyin",
+                    "Detayları inceleyin",
+                    "Hemen faydalanmaya başlayın.",
+                    "Axess Mobil uygulama üzerinden katılabilirsiniz.",
+                    "Harcamadan önce mobil uygulama üzerinden katılın.",
+                    "Harcamadan önce Mobilden katılın.",
+                    "Juzdan uygulama üzerinden katılabilirsiniz.",
+                    "Juzdan üzerinden katılabilirsiniz.",
+                    "Mobil Şube üzerinden Kampanyaya Katıl butonuna tıklayın",
+                    "Kampanyaya katılmak için Mobil Şube üzerinden Kampanyaya Katıl butonuna tıklamanız yeterlidir."
+                ]
+                
+                is_corrupted = False
+                if c.description and corrupted_regex.search(c.description): is_corrupted = True
+                if c.conditions and corrupted_regex.search(c.conditions): is_corrupted = True
+                if c.eligible_cards and corrupted_regex.search(c.eligible_cards): is_corrupted = True
+                if c.ai_marketing_text and corrupted_regex.search(c.ai_marketing_text): is_corrupted = True
+                
+                if is_corrupted:
+                    is_defective = True
+                    reasons.append("Character-level Corruption (comma-separated letters)")
+
                 if not c.description or len(c.description.strip()) < 15:
                     is_defective = True
                     reasons.append("Missing/Short Description")
-                if not c.reward_text or c.reward_text.strip() == "":
+                
+                # Check for Default Reward Text
+                is_reward_bad = not c.reward_text or c.reward_text.strip() == "" or "Detayları İnceleyin" in (c.reward_text or "") or "Hemen Faydalanın" in (c.reward_text or "")
+                if is_reward_bad:
                     is_defective = True
-                    reasons.append("Missing Reward Text")
+                    reasons.append("Missing/Default Reward Text")
+                
                 if c.reward_value is None:
                     is_defective = True
                     reasons.append("Missing Reward Value")
                 if not c.reward_type or c.reward_type.strip() == "":
                     is_defective = True
                     reasons.append("Missing Reward Type")
-                if not c.eligible_cards or c.eligible_cards.strip() == "":
+                
+                # Check for Missing/Corrupted/Generic Eligible Cards
+                is_cards_bad = not c.eligible_cards or c.eligible_cards.strip() == "" or "Kampanyaya Dahil Kartlar" in (c.eligible_cards or "") or corrupted_regex.search(c.eligible_cards or "")
+                if is_cards_bad:
                     is_defective = True
-                    reasons.append("Missing Eligible Cards")
+                    reasons.append("Missing/Corrupted/Generic Eligible Cards")
+                
                 if not c.start_date:
                     is_defective = True
                     reasons.append("Missing Start Date")
                 if not c.end_date:
                     is_defective = True
                     reasons.append("Missing End Date")
-                if not c.conditions or c.conditions.strip() == "":
+                if not c.conditions or c.conditions.strip() == "" or corrupted_regex.search(c.conditions or ""):
                     is_defective = True
-                    reasons.append("Missing Conditions")
+                    if "Missing Conditions" not in reasons: reasons.append("Missing/Corrupted Conditions")
+                
+                # Check for Generic/Missing Participation (in the NEW column)
+                is_participation_bad = not c.participation or c.participation.strip() == "" or any(p in (c.participation or "") for p in useless_participations) or "Detayları İnceleyin" in (c.participation or "")
+                if is_participation_bad:
+                    is_defective = True
+                    reasons.append("Missing/Generic Participation Text")
+                
+                # Check for Missing AI Marketing Summary
+                if not c.ai_marketing_text or len(c.ai_marketing_text.strip()) < 10:
+                    is_defective = True
+                    reasons.append("Missing Marketing Summary")
+                
+                # Check for Missing Clean Text
+                if not c.clean_text or len(c.clean_text.strip()) < 50:
+                    is_defective = True
+                    reasons.append("Missing Clean Text (Optimize for Search)")
 
                 # Sektör kontrolü: boş, Diğer veya güncel 24 sektör harici
                 valid_slugs = set(SECTOR_MAP.values())
@@ -145,10 +211,26 @@ def run_autofix():
                     is_defective = True
                     reasons.append("Missing Brands")
 
+                # Mojibake check (UTF-8/ISO mismatch)
+                mojibake_pattern = re.compile(r'[ÄÃÅ][\u0080-\u00bf]')
+                has_mojibake = False
+                if c.clean_text and mojibake_pattern.search(c.clean_text): has_mojibake = True
+                if c.description and mojibake_pattern.search(c.description): has_mojibake = True
+                
+                if has_mojibake:
+                    is_defective = True
+                    reasons.append("Character Encoding Issue (Mojibake)")
+
                 if is_defective and c.tracking_url:
-                    to_fix_ids.append((c.id, c.tracking_url, reasons))
+                    # If auto_corrected is True, only fix if it's due to generic/bad data
+                    if c.auto_corrected:
+                        # Only re-fix if it's one of the "persistent" generic issues
+                        if is_cards_bad or is_participation_bad or is_corrupted or has_mojibake:
+                            to_fix_ids.append((c.id, c.tracking_url, reasons))
+                    else:
+                        to_fix_ids.append((c.id, c.tracking_url, reasons))
             
-            print(f"⚠️ Found {len(to_fix_ids)} defective campaigns requiring repair.")
+            print(f"⚠️ Total campaigns to process: {len(to_fix_ids)} (FORCE_ALL={FORCE_ALL})")
             
             if not to_fix_ids:
                 print("✅ All active campaigns look healthy! Exiting.")
@@ -157,7 +239,7 @@ def run_autofix():
         fixed_count = 0
             
         for c_id, tracking_url, reasons_list in to_fix_ids:
-            reasons = ", ".join(reasons_list)
+            summary_reasons = ", ".join(reasons_list)
             
             with get_db_session() as db:
                 c = db.get(Campaign, c_id)
@@ -165,7 +247,7 @@ def run_autofix():
                     print(f"\n🛠️ Skipping: [{c_id}] (Campaign no longer in DB)")
                     continue
                     
-                print(f"\n🛠️ Fixing: [{c.id}] {c.title[:40]}... (Reasons: {reasons})")
+                print(f"\n🛠️ Fixing: [{c.id}] {c.title[:40]}... (Reasons: {summary_reasons})")
                 print(f"   🔗 URL: {c.tracking_url}")
                 
                 # Use optimized clean_text from DB if available
@@ -197,38 +279,42 @@ def run_autofix():
                 # Update logic
                 updated = False
                 
-                if not c.description or len(c.description.strip()) < 15:
+                # Update Description
+                if not c.description or len(c.description.strip()) < 15 or FORCE_ALL:
                     if ai_data.get("description"):
                         print(f"   ✨ Repaired Description!")
                         c.description = ai_data["description"]
                         updated = True
                         
-                if not c.reward_text or c.reward_text.strip() == "":
+                # Update Reward Text
+                is_reward_bad = not c.reward_text or c.reward_text.strip() == "" or "Detayları İnceleyin" in c.reward_text
+                if is_reward_bad or FORCE_ALL:
                     if ai_data.get("reward_text"):
-                        print(f"   ✨ Repaired Reward Text!")
+                        print(f"   ✨ Repaired Reward Text: {ai_data['reward_text']}")
                         c.reward_text = ai_data["reward_text"]
                         updated = True
                         
-                if c.reward_value is None:
+                if c.reward_value is None or FORCE_ALL:
                     if ai_data.get("reward_value") is not None:
                         print(f"   ✨ Repaired Reward Value: {ai_data['reward_value']}")
                         c.reward_value = ai_data["reward_value"]
                         updated = True
                         
-                if not c.reward_type or c.reward_type.strip() == "":
+                if not c.reward_type or c.reward_type.strip() == "" or FORCE_ALL:
                     if ai_data.get("reward_type"):
                         print(f"   ✨ Repaired Reward Type: {ai_data['reward_type']}")
                         c.reward_type = ai_data["reward_type"]
                         updated = True
                         
-                if not c.eligible_cards or c.eligible_cards.strip() == "":
+                # Update Eligible Cards if missing, corrupted or generic
+                if not c.eligible_cards or c.eligible_cards.strip() == "" or "Kampanyaya Dahil Kartlar" in (c.eligible_cards or "") or corrupted_regex.search(c.eligible_cards or ""):
                     if ai_data.get("cards") and len(ai_data["cards"]) > 0:
                         cards_str = ", ".join(ai_data["cards"])
                         print(f"   ✨ Repaired Eligible Cards: {cards_str}")
                         c.eligible_cards = cards_str
                         updated = True
 
-                if not c.start_date:
+                if not c.start_date or FORCE_ALL:
                     if ai_data.get("start_date"):
                         print(f"   ✨ Repaired Start Date: {ai_data['start_date']}")
                         from datetime import datetime
@@ -237,7 +323,7 @@ def run_autofix():
                             updated = True
                         except: pass
 
-                if not c.end_date:
+                if not c.end_date or FORCE_ALL:
                     if ai_data.get("end_date"):
                         print(f"   ✨ Repaired End Date: {ai_data['end_date']}")
                         from datetime import datetime
@@ -246,10 +332,47 @@ def run_autofix():
                             updated = True
                         except: pass
                         
-                if not c.conditions or c.conditions.strip() == "":
+                # Update Conditions if missing, corrupted or FORCE_ALL
+                if not c.conditions or c.conditions.strip() == "" or corrupted_regex.search(c.conditions) or FORCE_ALL:
                     if ai_data.get("conditions"):
                         print(f"   ✨ Repaired Conditions!")
                         c.conditions = "\n".join(f"- {cond}" for cond in ai_data.get("conditions", []))
+                        updated = True
+
+                # --- Participation and Eligible Cards skip logic bypass ---
+                is_cards_defective = not c.eligible_cards or c.eligible_cards.strip() == "" or "Kampanyaya Dahil Kartlar" in (c.eligible_cards or "")
+                is_participation_defective = not c.participation or c.participation.strip() == "" or any(p in (c.participation or "") for p in useless_participations)
+                
+                # Double check for corruption or generic placeholders
+                mojibake_pattern = re.compile(r'[ÄÃÅ][\u0080-\u00bf]')
+                has_mojibake = False
+                if c.clean_text and mojibake_pattern.search(c.clean_text): has_mojibake = True
+                if c.description and mojibake_pattern.search(c.description): has_mojibake = True
+
+                # If already auto_corrected, skip ONLY IF it has good data for cards and participation
+                # AND it doesn't have corruption/mojibake
+                if not FORCE_ALL and c.auto_corrected:
+                    if not is_cards_defective and not is_participation_defective and not is_corrupted and not has_mojibake:
+                        continue
+
+                # Clean and update Participation
+                is_curr_p_bad = not c.participation or c.participation.strip() == "" or any(p in (c.participation or "") for p in useless_participations) or corrupted_regex.search(c.participation)
+                if is_curr_p_bad or FORCE_ALL:
+                    if ai_data.get("participation"):
+                        print(f"   ✨ Repaired Participation: {ai_data['participation'][:50]}...")
+                        c.participation = ai_data["participation"]
+                        updated = True
+
+                # --- AI Marketing Text (Marketing Summary) update ---
+                if ai_data.get("ai_marketing_text"):
+                    # We always update this to get fresh summaries
+                    c.ai_marketing_text = ai_data["ai_marketing_text"]
+                    updated = True
+
+                # --- Clean Text Update ---
+                if not c.clean_text or len(c.clean_text.strip()) < 50:
+                    if text_to_parse:
+                        c.clean_text = text_to_parse
                         updated = True
 
                 # --- Sektör tamiri ---

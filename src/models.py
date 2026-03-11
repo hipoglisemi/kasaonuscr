@@ -136,6 +136,7 @@ class Campaign(Base):
     
     # Custom Fields from Prisma
     ai_marketing_text = Column(String, nullable=True)
+    participation = Column(String, nullable=True)
     eligible_cards = Column(String, nullable=True)
     category = Column(String, nullable=True)
     badge_color = Column(String, nullable=True)
