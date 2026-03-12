@@ -455,13 +455,13 @@ class AIParser:
         # Intentional delay to avoid violent RPM spikes across workers
         time.sleep(1.0) 
         
-        # Token optimization settings based on best practices
+        # Token optimization settings (AI Studio web settings do NOT apply to raw API keys)
         config = types.GenerateContentConfig(
-            temperature=0.0,          # Zero creativity, highly deterministic for JSON parse
-            top_p=0.1,                # Narrow token selection
-            top_k=1,                  # Pick only the absolute best next token
+            temperature=0.0,
+            top_p=0.1,
+            top_k=1,
             response_mime_type="application/json",
-            max_output_tokens=2048    # JSON output should never exceed this
+            max_output_tokens=6000
         )
 
         response = call_with_timeout(
