@@ -374,8 +374,9 @@ BANK_RULES = {
 
 # ── AI Provider Configuration ──────────────────────────────────────────────
 from google import genai as _genai_sdk
+from google.genai import types
 
-_GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+_GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 _use_vertex_ai = os.getenv("USE_VERTEX_AI", "False").lower() == "true"
 
 if _use_vertex_ai:
@@ -390,12 +391,10 @@ if _use_vertex_ai:
     # Configure via Service Account JSON STRING (Ideal for GitHub Secrets)
     if _credentials_json:
         import tempfile
-        # Write to a temp file and set the env var for the SDK
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as temp:
             temp.write(_credentials_json)
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp.name
             print(f"[DEBUG] Using credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON string.")
-    # Fallback to file path
     elif _credentials_path and os.path.exists(_credentials_path):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _credentials_path
         print(f"[DEBUG] Using credentials from file: {_credentials_path}")
@@ -405,50 +404,73 @@ if _use_vertex_ai:
         project=_project_id,
         location=_location
     )
+    _gemini_keys: list = []  # No key rotation in Vertex AI mode
     print(f"[DEBUG] Gemini initialized via Vertex AI (Project: {_project_id}, Model: {_GEMINI_MODEL_NAME}).")
 else:
-    _gemini_key = os.getenv("GEMINI_API_KEY")
-    if not _gemini_key:
-        for i in range(1, 20):
-            k = os.getenv(f"GEMINI_API_KEY_{i}")
-            if k:
-                _gemini_key = k
-                break
+    # ── Collect all available API keys for rotation ──────────────────
+    _gemini_keys: list = []
+    # Test GEMINI_API_KEY and GEMINI_API_KEY_1 through GEMINI_API_KEY_19
+    for _env_name in ["GEMINI_API_KEY"] + [f"GEMINI_API_KEY_{i}" for i in range(1, 20)]:
+        _k = os.getenv(_env_name)
+        if _k:
+            _gemini_keys.append(_k)
 
-    if not _gemini_key:
-        raise ValueError("No GEMINI_API_KEY found. Set GEMINI_API_KEY in .env")
+    if not _gemini_keys:
+        raise ValueError("No GEMINI_API_KEY found. Set GEMINI_API_KEY or GEMINI_API_KEY_1, GEMINI_API_KEY_2... in .env")
 
-    _gemini_client = _genai_sdk.Client(api_key=_gemini_key)
-    print(f"[DEBUG] Gemini initialized via AI Studio Key (Model: {_GEMINI_MODEL_NAME}).")
+    _gemini_client = _genai_sdk.Client(api_key=_gemini_keys[0])
+    print(f"[DEBUG] Gemini initialized via AI Studio Key(s) ({len(_gemini_keys)} key(s) available, Model: {_GEMINI_MODEL_NAME}).")
 # ────────────────────────────────────────────────────────────────────────────
-
 
 
 class AIParser:
     """
     Gemini AI-powered campaign parser.
     Extracts structured data from unstructured campaign text.
-    Uses exponential backoff for rate limits.
+    Uses exponential backoff for rate limits and rotates keys.
     """
 
     def __init__(self, model_name: str = None):
         self._client = _gemini_client
+        self._key_index = 0  # Current key index for rotation
         self.model = None
-        print(f"[DEBUG] AIParser using Gemini | model: {_GEMINI_MODEL_NAME}")
+        print(f"[DEBUG] AIParser using Gemini | model: {_GEMINI_MODEL_NAME} | keys: {len(_gemini_keys)}")
+
+    def _rotate_key(self) -> bool:
+        """Switch to next available API key. Returns True if rotated, False if exhausted."""
+        if _use_vertex_ai or len(_gemini_keys) <= 1:
+            return False
+        next_index = (self._key_index + 1) % len(_gemini_keys)
+        if next_index == self._key_index:
+            return False
+        self._key_index = next_index
+        self._client = _genai_sdk.Client(api_key=_gemini_keys[self._key_index])
+        print(f"   🔄 Rotated to API key #{self._key_index + 1}/{len(_gemini_keys)}")
+        return True
 
     # ── Unified call helper ──────────────────────────────────────────────────
     def _call_ai(self, prompt: str, timeout_sec: int = 65) -> str:
         """Send prompt to active AI provider."""
         import time
-        # Small intentional delay to ensure we do not violently hit 1000 RPM instantly across parallel workers
-        time.sleep(0.5) 
+        # Intentional delay to avoid violent RPM spikes across workers
+        time.sleep(1.0) 
+        
+        # Token optimization settings based on best practices
+        config = types.GenerateContentConfig(
+            temperature=0.0,          # Zero creativity, highly deterministic for JSON parse
+            top_p=0.1,                # Narrow token selection
+            top_k=1,                  # Pick only the absolute best next token
+            response_mime_type="application/json",
+            max_output_tokens=2048    # JSON output should never exceed this
+        )
+
         response = call_with_timeout(
             self._client.models.generate_content,
             args=(),
             kwargs={
                 "model": _GEMINI_MODEL_NAME, 
                 "contents": prompt,
-                "config": {"temperature": 0.1, "response_mime_type": "application/json"}
+                "config": config
             },
             timeout_sec=timeout_sec,
         )
@@ -503,7 +525,11 @@ class AIParser:
             except Exception as e:
                 error_str = str(e)
                 if "429" in error_str or "Resource exhausted" in error_str or "rate_limit" in error_str.lower() or "503" in error_str:
-                    # Exponential backoff for typical API failures / server congestion
+                    # Try rotating to next key first
+                    if self._rotate_key():
+                        print(f"   🔑 Rate limit hit, switched to next key (Attempt {attempt+1}/{max_retries})")
+                        continue
+                    # No more keys — exponential backoff
                     wait_time = (attempt + 1) * 3 
                     print(f"   ⚠️ API limit or 503 error. Waiting {wait_time}s... (Attempt {attempt+1}/{max_retries}) | {error_str[:100]}")
                     import time

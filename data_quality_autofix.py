@@ -232,6 +232,12 @@ def run_autofix():
             
             print(f"⚠️ Total campaigns to process: {len(to_fix_ids)} (FORCE_ALL={FORCE_ALL})")
             
+            # 🔥 SAFETY LIMIT: Protect Gemini AI Studio Free Quota (500 RPD)
+            MAX_FIXES = 50
+            if len(to_fix_ids) > MAX_FIXES:
+                print(f"   🛡️ Applying safety limit: Reducing {len(to_fix_ids)} to {MAX_FIXES} campaigns to preserve daily free quota.")
+                to_fix_ids = to_fix_ids[:MAX_FIXES]
+            
             if not to_fix_ids:
                 print("✅ All active campaigns look healthy! Exiting.")
                 return
