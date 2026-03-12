@@ -343,7 +343,7 @@ def run_autofix():
                 if not c.conditions or c.conditions.strip() == "" or corrupted_regex.search(c.conditions) or FORCE_ALL:
                     if ai_data.get("conditions"):
                         print(f"   ✨ Repaired Conditions!")
-                        c.conditions = "\n".join(f"- {cond}" for cond in ai_data.get("conditions", []))
+                        c.conditions = "\n".join(cond for cond in ai_data.get("conditions", []))
                         updated = True
 
                 # --- Participation and Eligible Cards skip logic bypass ---

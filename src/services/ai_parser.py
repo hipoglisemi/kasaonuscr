@@ -686,7 +686,7 @@ JSON Formatı:
   "brands": ["Marka1", "Marka2"],
   "cards": ["Kart1", "Kart2"],
   "participation": "Katılım talimatı (SMS/App)",
-  "conditions": ["Madde 1", "Madde 2"]
+  "conditions": ["Madde 1", "Madde 2"] // 🚨 ASLA madde işareti (- , * , •) kullanma, sadece metni yaz.
 }}
 
 ANALİZ EDİLECEK METİN:
@@ -719,10 +719,24 @@ ANALİZ EDİLECEK METİN:
             """Always return a list. If val is already a list, clean it. If string, wrap in list."""
             if not val:
                 return []
+            
+            # Regex to strip leading bullets like "-", "•", "*", "1.", etc.
+            bullet_pattern = re.compile(r'^[\s\-_•*\\.]+')
+
             if isinstance(val, list):
-                return [str(x).strip() for x in val if x and str(x).strip()]
-            # val is a string — wrap as single-item list (do NOT join characters!)
+                cleaned_list = []
+                for x in val:
+                    if x and str(x).strip():
+                        # Strip leading bullets and whitespace
+                        cleaned_item = bullet_pattern.sub('', str(x).strip()).strip()
+                        if cleaned_item:
+                            cleaned_list.append(cleaned_item)
+                return cleaned_list
+            
+            # val is a string — wrap as single-item list
             cleaned = str(val).strip()
+            if cleaned:
+                cleaned = bullet_pattern.sub('', cleaned).strip()
             return [cleaned] if cleaned else []
 
         normalized = {
