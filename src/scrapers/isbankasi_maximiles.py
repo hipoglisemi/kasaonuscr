@@ -14,98 +14,29 @@ from typing import Optional, Dict, Any, List
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
+# Fix sys.path to ensure src is discoverable
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
+# Check if we are in src/scrapers or root
+if "src" in current_dir:
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+else:
+    project_root = current_dir
+
 if project_root not in sys.path:
-    sys.path.append(project_root)
+    sys.path.insert(0, project_root)
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(project_root, '.env'))
-except Exception:
-    pass
-try:
-    with open(os.path.join(project_root, '.env'), 'r') as f:
-        for line in f:
-            if line.strip() and not line.startswith('#') and '=' in line:
-                k, v = line.strip().split('=', 1)
-                if k not in os.environ:
-                    os.environ[k] = v.strip('"\'')
-except Exception:
-    pass
+from dotenv import load_dotenv
+load_dotenv(os.path.join(project_root, '.env'))
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Numeric, ForeignKey
-from sqlalchemy.orm import sessionmaker, relationship, declarative_base
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import create_engine, text, func
+from sqlalchemy.orm import sessionmaker
+
+# Import unified models and database session
+from src.database import engine, get_db_session
+from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand
 
 # AIParser is lazy-imported in __init__ to avoid google.generativeai hang
 AIParser = None
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-Base = declarative_base()
-
-class Bank(Base):
-    __tablename__ = 'banks'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    slug = Column(String)
-    cards = relationship("Card", back_populates="bank")
-
-class Card(Base):
-    __tablename__ = 'cards'
-    id = Column(Integer, primary_key=True)
-    bank_id = Column(Integer, ForeignKey('banks.id'))
-    name = Column(String)
-    slug = Column(String)
-    is_active = Column(Boolean, default=True)
-    bank = relationship("Bank", back_populates="cards")
-    campaigns = relationship("Campaign", back_populates="card")
-
-class Sector(Base):
-    __tablename__ = 'sectors'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    slug = Column(String)
-    campaigns = relationship("Campaign", back_populates="sector")
-
-class Brand(Base):
-    __tablename__ = 'brands'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String)
-    slug = Column(String)
-    campaigns = relationship("CampaignBrand", back_populates="brand")
-
-class CampaignBrand(Base):
-    __tablename__ = 'test_campaign_brands' if os.environ.get('TEST_MODE') == '1' else 'campaign_brands'
-    campaign_id = Column(Integer, ForeignKey('campaigns.id'), primary_key=True)
-    brand_id = Column(UUID(as_uuid=True), ForeignKey('brands.id'), primary_key=True)
-    brand = relationship("Brand", back_populates="campaigns")
-    campaign = relationship("Campaign", back_populates="brands")
-
-class Campaign(Base):
-    __tablename__ = 'test_campaigns' if os.environ.get('TEST_MODE') == '1' else 'campaigns'
-    id = Column(Integer, primary_key=True)
-    card_id = Column(Integer, ForeignKey('cards.id'))
-    sector_id = Column(Integer, ForeignKey('sectors.id'))
-    slug = Column(String)
-    title = Column(String)
-    description = Column(String)
-    reward_text = Column(String)
-    reward_value = Column(Numeric)
-    reward_type = Column(String)
-    conditions = Column(String)
-    eligible_cards = Column(String)
-    image_url = Column(String)
-    start_date = Column(Date)
-    end_date = Column(Date)
-    is_active = Column(Boolean, default=True)
-    tracking_url = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
-    ai_marketing_text = Column(String)
-    card = relationship("Card", back_populates="campaigns")
-    sector = relationship("Sector", back_populates="campaigns")
-    brands = relationship("CampaignBrand", back_populates="campaign")
 
 
 SECTOR_MAP = {
@@ -128,11 +59,8 @@ class IsbankMaximilesScraper:
     CARD_SLUG = "maximiles"
 
     def __init__(self):
-        if not DATABASE_URL:
-            raise ValueError("DATABASE_URL is not set")
-        self.engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
-        Session = sessionmaker(bind=self.engine)
-        self.db = Session()
+        self.engine = engine
+        self.db = get_db_session()
         
         # Lazy import of AIParser to avoid google.generativeai hanging at module import time
         try:
@@ -151,6 +79,7 @@ class IsbankMaximilesScraper:
         self.page = None
         self.browser = None
         self.playwright = None
+        self.card_id = None
         self._init_card()
 
     def _init_card(self):
@@ -596,7 +525,11 @@ class IsbankMaximilesScraper:
 
         try:
             ai_data = self.parser.parse_campaign_data(
-                raw_text=data["full_text"], bank_name=self.BANK_NAME, title=data["title"]
+                raw_text=data["full_text"], 
+                bank_name=self.BANK_NAME, 
+                title=data["title"],
+                tracking_url=url, # for global cache
+                force=force
             ) or {}
         except Exception as e:
             self.db.rollback()
@@ -652,7 +585,7 @@ class IsbankMaximilesScraper:
                 existing.image_url = data["image_url"]
                 existing.start_date = start_date
                 existing.end_date = end_date
-                existing.updated_at = datetime.utcnow()
+                existing.updated_at = func.now()
                 self.db.commit()
                 print(f"   ✅ Updated: {existing.title[:50]}")
             else:
@@ -668,7 +601,7 @@ class IsbankMaximilesScraper:
                     image_url=data["image_url"],
                     start_date=start_date, end_date=end_date,
                     is_active=True, tracking_url=url,
-                    created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+                    created_at=func.now(), updated_at=func.now(),
                 )
                 self.db.add(campaign)
                 self.db.commit()

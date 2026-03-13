@@ -10,8 +10,8 @@ passes it back through the Gemini AI parser to repair the missing fields.
 import os
 import sys
 import time
-import requests
-from bs4 import BeautifulSoup
+import requests # type: ignore
+from bs4 import BeautifulSoup # type: ignore
 
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,10 +24,10 @@ import logging
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("google_genai.models").setLevel(logging.WARNING)
 
-from src.models import Campaign, Sector, Brand, CampaignBrand
-from src.database import get_db_session
-from src.services.ai_parser import parse_campaign_data, AIParser
-from sqlalchemy.orm import joinedload
+from src.models import Campaign, Sector, Brand, CampaignBrand # type: ignore
+from src.database import get_db_session # type: ignore
+from src.services.ai_parser import parse_campaign_data, AIParser # type: ignore
+from sqlalchemy.orm import joinedload # type: ignore
 
 # Shared cleaner — same preprocessing scrapers use (filters boilerplate, dedup, 6K limit)
 _clean_text = AIParser._clean_text
@@ -65,7 +65,7 @@ def fetch_html(url: str) -> str:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         }
-        import urllib3
+        import urllib3 # type: ignore
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         response = requests.get(url, headers=headers, timeout=15, verify=False)
         response.raise_for_status()
@@ -87,18 +87,18 @@ def fetch_html(url: str) -> str:
         print(f"      ⚠️ Failed to fetch HTML for {url}: {e}")
         return ""
 
-def run_autofix():
-    print("🚀 Starting Data Quality Auto-Fixer...")
+def run_autofix(limit: int = 50):
+    print(f"🚀 Starting Data Quality Auto-Fixer (Limit: {limit})...")
     
     try:
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        cooldown_period = timedelta(hours=48)
+        
         with get_db_session() as db:
             print("\n🔍 Scanning for defective campaigns...")
 
-            # Find active campaigns with missing/poor descriptions, reward texts, or conditions
-            # Skip any that have already been auto-corrected to avoid infinite loops for 'Diğer' sectors
-            # Use eager loading to prevent N+1 query hangs
-            # Find active campaigns. 
-            # We check ALL active campaigns now to catch those marked auto_corrected but still having bad data (like generic participation)
+            # Find active campaigns
             defective_campaigns = db.query(Campaign).options(
                 joinedload(Campaign.sector),
                 joinedload(Campaign.brands)
@@ -107,10 +107,10 @@ def run_autofix():
             ).all()
             print(f"   📊 Checking {len(defective_campaigns)} active campaigns for defects.")
             
-            SCAN_ONLY = False # If True, will only count defects without fixing
             FORCE_ALL = False # If True, will fix all active campaigns regardless of status
-            
             to_fix_ids = []
+            stats = {"new": 0, "retry": 0, "skipped_cooldown": 0}
+
             for c in defective_campaigns:
                 is_defective = False
                 reasons = []
@@ -143,7 +143,7 @@ def run_autofix():
                 
                 if is_corrupted:
                     is_defective = True
-                    reasons.append("Character-level Corruption (comma-separated letters)")
+                    reasons.append("Character-level Corruption")
 
                 if not c.description or len(c.description.strip()) < 15:
                     is_defective = True
@@ -176,68 +176,52 @@ def run_autofix():
                     reasons.append("Missing End Date")
                 if not c.conditions or c.conditions.strip() == "" or corrupted_regex.search(c.conditions or ""):
                     is_defective = True
-                    if "Missing Conditions" not in reasons: reasons.append("Missing/Corrupted Conditions")
+                    reasons.append("Missing/Corrupted Conditions")
                 
-                # Check for Generic/Missing Participation (in the NEW column)
+                # Check for Generic/Missing Participation
                 is_participation_bad = not c.participation or c.participation.strip() == "" or any(p in (c.participation or "") for p in useless_participations) or "Detayları İnceleyin" in (c.participation or "")
                 if is_participation_bad:
                     is_defective = True
                     reasons.append("Missing/Generic Participation Text")
                 
-                # Check for Missing AI Marketing Summary
                 if not c.ai_marketing_text or len(c.ai_marketing_text.strip()) < 10:
                     is_defective = True
                     reasons.append("Missing Marketing Summary")
                 
-                # Check for Missing Clean Text
                 if not c.clean_text or len(c.clean_text.strip()) < 50:
                     is_defective = True
-                    reasons.append("Missing Clean Text (Optimize for Search)")
+                    reasons.append("Missing Clean Text")
 
-                # Sektör kontrolü: boş, Diğer veya güncel 24 sektör harici
+                # Sektör ve Marka Kontrolleri
                 valid_slugs = set(SECTOR_MAP.values())
-                if not c.sector_id:
+                if not c.sector_id or (c.sector and (c.sector.slug == "diger" or c.sector.slug not in valid_slugs)):
                     is_defective = True
-                    reasons.append("Missing Sector")
-                elif c.sector and c.sector.slug == "diger":
-                    is_defective = True
-                    reasons.append("Sector=Diğer (needs reclassification)")
-                elif c.sector and c.sector.slug not in valid_slugs:
-                    is_defective = True
-                    reasons.append(f"Deprecated Sector ({c.sector.slug})")
+                    reasons.append("Missing/Bad Sector")
 
-                # Marka kontrolü: campaign_brands boş
                 if not c.brands:
                     is_defective = True
                     reasons.append("Missing Brands")
 
-                # Mojibake check (UTF-8/ISO mismatch)
-                mojibake_pattern = re.compile(r'[ÄÃÅ][\u0080-\u00bf]')
-                has_mojibake = False
-                
-                # Sadece daha önce TAMİR EDİLMEMİŞ kampanyalarda clean_text mojibake kontrolü yap
-                # Çünkü AI parser clean_text'i tamir etmez, sadece description'ı tamir eder. Bu da sonsuz döngü yaratır.
-                if c.clean_text and not c.auto_corrected and mojibake_pattern.search(c.clean_text): 
-                    has_mojibake = True
-                
-                # Ancak kullanıcıların gördüğü asıl açıklamada mojibake varsa her zaman tamir et
-                if c.description and mojibake_pattern.search(c.description): 
-                    has_mojibake = True
-                
-                if has_mojibake:
-                    is_defective = True
-                    reasons.append("Character Encoding Issue (Mojibake)")
-
                 if is_defective and c.tracking_url:
-                    # If auto_corrected is True, only fix if it's due to generic/bad data
+                    # COOLDOWN LOGIC (Madde 2)
                     if c.auto_corrected:
-                        # Only re-fix if it's one of the "persistent" generic issues
-                        if is_cards_bad or is_participation_bad or is_corrupted or has_mojibake:
-                            to_fix_ids.append((c.id, c.tracking_url, reasons))
+                        # Eğer daha önce düzeltilmişse, son güncellemeden sonra 48 saat geçmiş mi bak
+                        last_update = c.updated_at or c.created_at
+                        if now - last_update < cooldown_period:
+                            stats["skipped_cooldown"] += 1
+                            continue
+                        stats["retry"] += 1
                     else:
-                        to_fix_ids.append((c.id, c.tracking_url, reasons))
+                        stats["new"] += 1
+                    
+                    to_fix_ids.append((c.id, c.tracking_url, reasons))
+                    if len(to_fix_ids) >= limit:
+                        print(f"   ⚠️ Reached limit of {limit} campaigns. Stopping search.")
+                        break
             
-            print(f"⚠️ Total campaigns to process: {len(to_fix_ids)} (FORCE_ALL={FORCE_ALL})")
+            print(f"   📊 Found defects: {stats['new']} new, {stats['retry']} retries. (Skipped by cooldown: {stats['skipped_cooldown']})")
+
+            print(f"⚠️ Total campaigns to process in this run: {len(to_fix_ids)} (FORCE_ALL={FORCE_ALL})")
             
             if not to_fix_ids:
                 print("✅ All active campaigns look healthy! Exiting.")
@@ -409,9 +393,9 @@ def run_autofix():
                 # --- Marka tamiri ---
                 if not c.brands and ai_data.get("brands"):
                     for b_name in ai_data["brands"]:
-                        if len(b_name) < 2:
+                        if not isinstance(b_name, str) or len(b_name) < 2:
                             continue
-                        b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
+                        b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')  # type: ignore
                         try:
                             brand = db.query(Brand).filter(
                                 (Brand.slug == b_slug) | (Brand.name.ilike(b_name))
@@ -444,7 +428,7 @@ def run_autofix():
                     print(f"   ⚠️ AI didn't find the missing data. No changes made.")
 
             # Be gentle to the API limits
-            time.sleep(2)
+            time.sleep(3)
             
         print(f"\n🏁 Auto-fixer complete. Successfully repaired {fixed_count}/{len(to_fix_ids)} campaigns.")
             
@@ -455,4 +439,9 @@ def run_autofix():
         sys.exit(1)
 
 if __name__ == "__main__":
-    run_autofix()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--limit", type=int, default=50, help="Max campaigns to fix in one run")
+    args = parser.parse_args()
+    
+    run_autofix(limit=args.limit)

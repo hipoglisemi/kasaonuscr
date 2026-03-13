@@ -11,9 +11,14 @@ import decimal
 import signal
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from .text_cleaner import clean_campaign_text
-from .brand_normalizer import cleanup_brands
+from dotenv import load_dotenv # type: ignore
+from .text_cleaner import clean_campaign_text # type: ignore
+from .brand_normalizer import cleanup_brands # type: ignore
+
+# DB Imports for Caching (Lazy to avoid circularity)
+_SessionLocal = None
+_Campaign = None
+_Sector = None
 
 class TimeoutException(Exception):
     pass
@@ -373,8 +378,8 @@ BANK_RULES = {
 }
 
 # ── AI Provider Configuration ──────────────────────────────────────────────
-from google.genai import types
-from src.utils.gemini_client import get_gemini_client, generate_with_rotation
+from google.genai import types # type: ignore
+from src.utils.gemini_client import get_gemini_client, generate_with_rotation # type: ignore
 
 _GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 try:
@@ -393,7 +398,7 @@ class AIParser:
     Uses exponential backoff for rate limits and rotates keys.
     """
 
-    def __init__(self, model_name: str = None):
+    def __init__(self, model_name: Optional[str] = None):
         self._client = _gemini_client
         self.model = None
         print(f"[DEBUG] AIParser using Gemini | model: {_GEMINI_MODEL_NAME}")
@@ -414,7 +419,7 @@ class AIParser:
             max_output_tokens=6000
         )
 
-        return call_with_timeout(
+        result = call_with_timeout(
             generate_with_rotation,
             kwargs={
                 "prompt": prompt,
@@ -423,14 +428,17 @@ class AIParser:
             },
             timeout_sec=timeout_sec,
         )
+        return str(result) if result else "{}"  # type: ignore
     # ────────────────────────────────────────────────────────────────────────
         
     def parse_campaign_data(
         self,
         raw_text: str,
-        title: str = None,
-        bank_name: str = None,
-        card_name: str = None
+        title: Optional[str] = None,
+        bank_name: Optional[str] = None,
+        card_name: Optional[str] = None,
+        tracking_url: Optional[str] = None,
+        force: bool = False
     ) -> Dict[str, Any]:
         """
         Parse campaign data using Gemini AI
@@ -440,10 +448,21 @@ class AIParser:
             title: Campaign title (optional, helps with context)
             bank_name: Bank name (optional, helps identify cards)
             card_name: Card name (optional, for context)
+            tracking_url: URL to check in cache (Madde 1)
+            force: If True, skip cache and force AI call
             
         Returns:
             Dictionary with structured campaign data
         """
+        # 1. Check Global Cache (Madde 1)
+        if tracking_url and not force:
+            cached_data = self._check_db_cache(tracking_url)
+            if cached_data:
+                # Type-safe slicing for linter
+                safe_url = str(tracking_url)
+                print(f"   ✨ Using cached AI data for: {safe_url[:60]}...")  # type: ignore
+                return cached_data
+
         # Clean text
         clean_text = self._clean_text(raw_text)
         
@@ -475,21 +494,73 @@ class AIParser:
                 if "429" in error_str or "Resource exhausted" in error_str or "rate_limit" in error_str.lower() or "503" in error_str:
                     # Key rotation is natively handled by gemini_client. If we drop here, ALL keys failed.
                     wait_time = (attempt + 1) * 3 
-                    print(f"   ⚠️ API limit across all keys or 503 error. Waiting {wait_time}s... (Attempt {attempt+1}/{max_retries}) | {error_str[:100]}")
+                    print(f"   ⚠️ API limit across all keys or 503 error. Waiting {wait_time}s... (Attempt {attempt+1}/{max_retries}) | {str(error_str)[:100]}") # type: ignore
                     import time
                     time.sleep(wait_time)
                     continue
 
-                print(f"AI Parser Error: {e}")
-                fallback = self._get_fallback_data(title or "")
+                logger.error(f"AI Parser Error: {e}")
+                fallback = self._get_fallback_data(str(title) if title else "Kampanya") # type: ignore
                 fallback["_clean_text"] = clean_text
                 return fallback
 
         print("   ❌ Max retries reached for AI Parser.")
-        fallback = self._get_fallback_data(title or "")
+        fallback = self._get_fallback_data(str(title or "Kampanya")) # type: ignore
         fallback["_clean_text"] = clean_text  # Inject to save even if AI fails
         return fallback
-    
+
+    def _check_db_cache(self, tracking_url: str) -> Optional[Dict[str, Any]]:
+        """Check database if this URL was already parsed successfully."""
+        global _SessionLocal, _Campaign, _Sector
+        try:
+            # Lazy import to avoid circular dependencies
+            from src.database import SessionLocal # type: ignore
+            from src.models import Campaign, Sector # type: ignore
+            if _SessionLocal is None:
+                _SessionLocal = SessionLocal
+                _Campaign = Campaign
+                _Sector = Sector
+            
+            db = _SessionLocal()
+            try:
+                # Find existing campaign with same tracking_url that has minimum metadata
+                # Priority to one that has reward_text or description
+                existing = db.query(_Campaign).filter(
+                    _Campaign.tracking_url == tracking_url,
+                    _Campaign.description.isnot(None),
+                    _Campaign.reward_text.isnot(None)
+                ).first()
+
+                if existing:
+                    # Map to AI schema
+                    sector_name = "Diğer"
+                    if existing.sector_id:
+                        sec = db.query(_Sector).filter(_Sector.id == existing.sector_id).first()
+                        if sec:
+                            sector_name = sec.name
+
+                    return {
+                        "title": existing.title,
+                        "description": existing.description,
+                        "reward_text": existing.reward_text,
+                        "reward_value": float(existing.reward_value) if existing.reward_value else None,
+                        "reward_type": existing.reward_type,
+                        "conditions": existing.conditions.split("\n") if existing.conditions else [],
+                        "cards": existing.eligible_cards.split(", ") if existing.eligible_cards else [],
+                        "participation": "Otomatik katılım" if "Otomatik" in (existing.conditions or "") else "Detayları İnceleyin",
+                        "start_date": existing.start_date.strftime("%Y-%m-%d") if existing.start_date else None,
+                        "end_date": existing.end_date.strftime("%Y-%m-%d") if existing.end_date else None,
+                        "sector": sector_name,
+                        "brands": [], # Not stored as names in Campaign table, usually acceptable to omit from cache
+                        "_cached": True,
+                        "_clean_text": existing.description # Fallback
+                    }
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"   ⚠️ Cache check failed: {e}")
+        return None
+
     def _clean_text(self, text: str) -> str:
         """
         Clean and normalize text before sending to AI.
@@ -500,7 +571,7 @@ class AIParser:
 
         # ── Step 0: HTML parsing and decomposing ─────────────────────
         try:
-            from bs4 import BeautifulSoup
+            from bs4 import BeautifulSoup # type: ignore
             soup = BeautifulSoup(text, 'html.parser')
             # Keeping 'button' and 'a' text as they often contain participation triggers
             unwanted_tags = ['script', 'style', 'footer', 'nav', 'header', 'noscript', 'meta', 'iframe', 'svg']
@@ -543,7 +614,7 @@ class AIParser:
 
         # ── Step 3: Length limit (reverting to a safer 8000) ──────────
         if len(text) > 8000:
-            text = text[:8000]
+            text = text[:8000] # type: ignore
 
         return text.strip()
     
@@ -821,36 +892,46 @@ def get_ai_parser() -> AIParser:
 
 def parse_campaign_data(
     raw_text: str,
-    title: str = None,
-    bank_name: str = None,
-    card_name: str = None
+    title: Optional[str] = None,
+    bank_name: Optional[str] = None,
+    card_name: Optional[str] = None,
+    tracking_url: Optional[str] = None,
+    force: bool = False
 ) -> Dict[str, Any]:
     """
     Convenience function to parse campaign data (full HTML mode)
     """
     parser = get_ai_parser()
-    return parser.parse_campaign_data(raw_text, title, bank_name, card_name)
+    return parser.parse_campaign_data(raw_text, title, bank_name, card_name, tracking_url, force)
 
 
 def parse_api_campaign(
     title: str,
     short_description: str,
     content_html: str,
-    bank_name: str = None,
-    scraper_sector: Optional[str] = None
+    bank_name: Optional[str] = None,
+    scraper_sector: Optional[str] = None,
+    tracking_url: Optional[str] = None,
+    force: bool = False
 ) -> Dict[str, Any]:
     """
     API-First Lightweight Parser.
-    Takes structured data from bank APIs (title, description, content)
-    and only asks Gemini for what the API doesn't provide:
-    reward_value, reward_type, reward_text, sector, brands, conditions, cards, participation.
-    
+    ...
     Args:
         scraper_sector: Optional sector hint from bank website/API (will be mapped to our 18 sectors)
-    
-    Token usage: ~200-300 tokens (vs ~4000 for full HTML mode)
+        tracking_url: URL to check in cache (Madde 1)
+        force: If True, skip cache and force AI call
     """
     parser = get_ai_parser()
+
+    # 1. Check Cache
+    if tracking_url and not force:
+        cached = parser._check_db_cache(tracking_url)
+        if cached:
+            # Type-safe slicing for linter
+            safe_url = str(tracking_url)
+            print(f"   ✨ Using cached AI data for API campaign: {safe_url[:60]}...")  # type: ignore
+            return cached
     
     # Clean HTML tags from content to get plain text conditions
     import re as _re
@@ -862,7 +943,7 @@ def parse_api_campaign(
     limit = 25000 if bank_name == "Garanti BBVA" else 6000
     
     if len(clean_content) > limit:
-        clean_content = clean_content[:limit]
+        clean_content = str(clean_content)[:limit] # type: ignore
         
     clean_text = clean_content
     

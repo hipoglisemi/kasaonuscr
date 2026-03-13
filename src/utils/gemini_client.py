@@ -39,20 +39,34 @@ def generate_with_rotation(
 ) -> str:
     """
     Verilen prompt'u Gemini API'ye gönderir.
-    429 / ResourceExhausted hatası alınırsa sıradaki anahtara geçer.
-    Tüm anahtarlar tükenirse son hatayı fırlatır.
-
-    Args:
-        prompt: Gönderilecek metin.
-        model: Kullanılacak Gemini model adı (varsayılan: GEMINI_MODEL env değişkeni).
-        retry_delay: Anahtar geçişleri arasında beklenecek saniye.
-
-    Returns:
-        Modelin ürettiği metin yanıtı.
+    USE_VERTEX_AI=True ise Vertex AI üzerinden, aksi halde key rotation ile çalışır.
     """
-    from google import genai as _sdk
+    from google import genai as _sdk # type: ignore
+    from google.genai import types as _types # type: ignore
 
+    use_vertex = os.getenv("USE_VERTEX_AI", "False").lower() == "true"
     model_name = model or os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
+    
+    # Wrap direct parameters into config object
+    if "config" in kwargs:
+        config = kwargs.pop("config")
+    else:
+        config = _types.GenerateContentConfig(**kwargs) if kwargs else None
+
+    if use_vertex:
+        try:
+            client = get_gemini_client()
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=config
+            )
+            return response.text.strip()
+        except Exception as e:
+            print(f"[VertexAI] Error: {e}")
+            raise e
+
+    # AI Studio / Key Rotation Mode
     keys = _load_keys()
     last_error: Exception | None = None
 
@@ -62,7 +76,7 @@ def generate_with_rotation(
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt,
-                **kwargs
+                config=config
             )
             if idx > 0:
                 print(f"[KeyRotation] Anahtar #{idx + 1} başarılı ({model_name}).")
@@ -84,13 +98,9 @@ def generate_with_rotation(
                 time.sleep(retry_delay)
                 continue  # sonraki key
             else:
-                # Rate-limit dışı hata → direkt fırlat
                 raise
-
-    raise RuntimeError(
-        f"Tüm Gemini API anahtarları tükendi veya kullanılamıyor. "
-        f"Son hata: {last_error}"
-    )
+    
+    raise RuntimeError(f"Tüm Gemini API anahtarları tükendi. Son hata: {last_error}")
 
 
 # ─── Vertex AI / AI Studio seçici istemci ────────────────────────────────────
@@ -100,7 +110,7 @@ def get_gemini_client():
     API anahtarı olan ilk key ile istemci döndürür.
     (generate_with_rotation kullanmak her zaman tercih edilmelidir.)
     """
-    from google import genai as _sdk
+    from google import genai as _sdk # type: ignore
 
     use_vertex = os.getenv("USE_VERTEX_AI", "False").lower() == "true"
     if use_vertex:

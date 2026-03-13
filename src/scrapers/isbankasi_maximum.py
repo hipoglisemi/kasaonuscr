@@ -572,7 +572,7 @@ class IsbankMaximumScraper:
             traceback.print_exc()
             return None
 
-    def run(self, limit: Optional[int] = None):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
         """Main execution flow"""
 
         bank_id = self._get_or_create_bank()
@@ -583,7 +583,12 @@ class IsbankMaximumScraper:
         print("🚀 Starting İşbankası Maximum Scraper (Requests)...")
 
         try:
-            urls, expired_urls = self._fetch_campaign_urls(limit=limit)
+            if urls:
+                print(f"🎯 Running specific URLs: {len(urls)}")
+                active_urls = urls
+                expired_urls = []
+            else:
+                active_urls, expired_urls = self._fetch_campaign_urls(limit=limit)
 
             # Evaluate expired campaigns logic
             if expired_urls:
@@ -603,6 +608,7 @@ class IsbankMaximumScraper:
                         self.session.rollback()
                         print(f"   ⚠️ Could not update expired campaign {e_url}: {e}")
                         
+            urls = active_urls
             results = []
             success, skipped, failed = 0, 0, 0
             error_details = []
@@ -619,7 +625,7 @@ class IsbankMaximumScraper:
                     Campaign.tracking_url == url,
                     Campaign.card_id == card_id
                 ).first()
-                if existing:
+                if existing and not force:
                     print(f"   ℹ️  Already exists in DB: [{existing.id}] {existing.title[:40]}")
                     skipped += 1
                     continue
@@ -635,7 +641,9 @@ class IsbankMaximumScraper:
                             raw_text=res_data["raw_text"],
                             title=res_data["title"],
                             bank_name=self.BANK_NAME,
-                            card_name="Maximum Card"
+                            card_name="Maximum Card",
+                            tracking_url=url, # for global cache
+                            force=force
                         )
                         if ai_data:
                             print("   ✅ AI parsed successfully")
@@ -707,7 +715,13 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Limit the number of campaigns to scrape")
+    parser.add_argument("--urls", type=str, default=None, help="Comma separated list of URLs to scrape")
+    parser.add_argument("--force", action="store_true", help="Force update existing campaigns")
     args = parser.parse_args()
     
+    url_list = None
+    if args.urls:
+        url_list = [u.strip() for u in args.urls.split(",") if u.strip()]
+
     scraper = IsbankMaximumScraper()
-    scraper.run(limit=args.limit)
+    scraper.run(limit=args.limit, urls=url_list, force=args.force)

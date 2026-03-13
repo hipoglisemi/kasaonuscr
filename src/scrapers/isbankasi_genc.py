@@ -569,7 +569,7 @@ class IsbankMaximumGencScraper:
             traceback.print_exc()
             return "error"
 
-    def run(self, limit: Optional[int] = None):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
         try:
             print("🚀 Starting İşbankası Maximum Genç Scraper (Playwright)...")
             self._start_browser()
@@ -579,7 +579,12 @@ class IsbankMaximumGencScraper:
                 self.db.commit()
                 self.db.close()
                 
-            active_urls, expired_urls = self._fetch_campaign_urls(limit=limit)
+            if urls:
+                print(f"🎯 Running specific URLs: {len(urls)}")
+                active_urls = urls
+                expired_urls = []
+            else:
+                active_urls, expired_urls = self._fetch_campaign_urls(limit=limit)
             
             # Evaluate expired campaigns logic
             if expired_urls:
@@ -606,7 +611,7 @@ class IsbankMaximumGencScraper:
             for i, url in enumerate(urls, 1):
                 print(f"\n[{i}/{len(urls)}]")
                 try:
-                    res = self._process_campaign(url)
+                    res = self._process_campaign(url, force=force)
                     if res == "saved":
                         success += 1
                     elif res == "skipped":
@@ -660,7 +665,13 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Limit the number of campaigns to scrape")
+    parser.add_argument("--urls", type=str, default=None, help="Comma separated list of URLs to scrape")
+    parser.add_argument("--force", action="store_true", help="Force update existing campaigns")
     args = parser.parse_args()
     
+    url_list = None
+    if args.urls:
+        url_list = [u.strip() for u in args.urls.split(",") if u.strip()]
+        
     scraper = IsbankMaximumGencScraper()
-    scraper.run(limit=args.limit)
+    scraper.run(limit=args.limit, urls=url_list, force=args.force)

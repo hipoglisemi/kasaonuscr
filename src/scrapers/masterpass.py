@@ -13,32 +13,32 @@ import json
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from urllib.parse import urljoin
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup # type: ignore
 
+# Fix sys.path to ensure src is discoverable
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
+# Check if we are in src/scrapers or root
+if "src" in current_dir:
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+else:
+    project_root = current_dir
+
 if project_root not in sys.path:
-    sys.path.append(project_root)
+    sys.path.insert(0, project_root)
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(project_root, '.env'))
-except Exception:
-    pass
+from dotenv import load_dotenv # type: ignore
+load_dotenv(os.path.join(project_root, '.env'))
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Numeric, ForeignKey
-from sqlalchemy.orm import sessionmaker, relationship, declarative_base
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import create_engine, text, func # type: ignore
+from sqlalchemy.orm import sessionmaker # type: ignore
+
+# Import unified models and database session
+from src.database import engine, get_db_session # type: ignore
+from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand # type: ignore
+from src.utils.logger_utils import log_scraper_execution # type: ignore
 
 # AIParser is lazy-imported in __init__ to avoid google.generativeai hang
 AIParser = None
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set")
-    
-from src.scrapers.param import Bank, Card, Sector, Brand, CampaignBrand, Campaign, SECTOR_MAP
-from src.utils.logger_utils import log_scraper_execution
 
 class MasterpassScraper:
     """Masterpass Plus scraper - Playwright based"""
@@ -49,15 +49,15 @@ class MasterpassScraper:
     BANK_SLUG = "mastercard"
 
     def __init__(self):
-        self.engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
-        Session = sessionmaker(bind=self.engine)
-        self.db = Session()
+        self.engine = engine
+        self.db = get_db_session()
+        self.card_id = None
         
         # Lazy import of AIParser
         try:
-            from src.services.ai_parser import AIParser as _AIParser
+            from src.services.ai_parser import AIParser as _AIParser # type: ignore
         except ImportError:
-            from services.ai_parser import AIParser as _AIParser
+            from services.ai_parser import AIParser as _AIParser # type: ignore
         self.parser = _AIParser()
 
         self.page = None
@@ -84,8 +84,8 @@ class MasterpassScraper:
         print(f"✅ Card: {card.name} (ID: {self.card_id})")
 
     def _start_browser(self):
-        from playwright.sync_api import sync_playwright
-        self.playwright = sync_playwright().start()
+        from playwright.sync_api import sync_playwright # type: ignore
+        self.playwright = sync_playwright().start() # type: ignore
         
         is_ci = os.getenv("GITHUB_ACTIONS") == "true" or os.getenv("CI") == "true"
         connected = False
@@ -93,29 +93,29 @@ class MasterpassScraper:
         if not is_ci:
             try:
                 print("   🔌 Attempting to connect to local Chrome debug instance at http://localhost:9222...")
-                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
+                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222") # type: ignore
                 connected = True
                 print("   ✅ Connected to local existing Chrome instance")
                 
-                if len(self.browser.contexts) > 0:
-                    context = self.browser.contexts[0]
+                if len(self.browser.contexts) > 0: # type: ignore
+                    context = self.browser.contexts[0] # type: ignore
                 else:
-                    context = self.browser.new_context()
+                    context = self.browser.new_context() # type: ignore
                     
                 self.page = context.new_page()
-                self.page.set_default_timeout(120000)
+                self.page.set_default_timeout(120000) # type: ignore
                 return
             except Exception as e:
                 pass
                 
         if not connected:
-            self.browser = self.playwright.chromium.launch(
+            self.browser = self.playwright.chromium.launch( # type: ignore
                 headless=True,
                 args=["--no-sandbox", "--disable-setuid-sandbox",
                       "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1920,1080",
                       "--disable-blink-features=AutomationControlled"]
             )
-            context = self.browser.new_context(
+            context = self.browser.new_context( # type: ignore
                 viewport={"width": 1920, "height": 1080},
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 locale="tr-TR",
@@ -123,22 +123,22 @@ class MasterpassScraper:
             )
             context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             self.page = context.new_page()
-            self.page.set_default_timeout(120000)
+            self.page.set_default_timeout(120000) # type: ignore
 
     def _stop_browser(self):
         try:
-            if self.page: self.page.close()
-            if self.browser: self.browser.close()
-            if self.playwright: self.playwright.stop()
+            if self.page: self.page.close() # type: ignore
+            if self.browser: self.browser.close() # type: ignore
+            if self.playwright: self.playwright.stop() # type: ignore
         except Exception:
             pass
 
     def _fetch_campaign_urls(self, limit: Optional[int] = None) -> List[str]:
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL} ...")
-        self.page.goto(self.CAMPAIGNS_URL, wait_until="networkidle", timeout=120000)
+        self.page.goto(self.CAMPAIGNS_URL, wait_until="networkidle", timeout=120000) # type: ignore
         time.sleep(3)
 
-        soup = BeautifulSoup(self.page.content(), "html.parser")
+        soup = BeautifulSoup(self.page.content(), "html.parser") # type: ignore
         
         a_tags = soup.find_all('a', href=True)
         all_links = []
@@ -154,7 +154,7 @@ class MasterpassScraper:
 
         unique_urls = list(dict.fromkeys(all_links))
         if limit:
-            unique_urls = unique_urls[:limit]
+            unique_urls = unique_urls[:limit] # type: ignore
             
         print(f"✅ Found {len(unique_urls)} campaigns")
         return unique_urls
@@ -164,7 +164,7 @@ class MasterpassScraper:
             success = False
             for attempt in range(2):
                 try:
-                    self.page.goto(url, wait_until="networkidle", timeout=60000)
+                    self.page.goto(url, wait_until="networkidle", timeout=60000) # type: ignore
                     time.sleep(2)
                     success = True
                     break
@@ -176,7 +176,7 @@ class MasterpassScraper:
                 print(f"      ❌ Could not load detail page: {url}")
                 return None
                 
-            soup = BeautifulSoup(self.page.content(), "html.parser")
+            soup = BeautifulSoup(self.page.content(), "html.parser") # type: ignore
             
             # Title
             title_el = soup.find('h1')
@@ -214,7 +214,7 @@ class MasterpassScraper:
                 "full_text": full_text,
                 "conditions": conditions, 
                 "source_url": url,
-            }
+            } # type: ignore
         except Exception as e:
             print(f"   ⚠️ Error extracting {url}: {e}")
             return None
@@ -234,8 +234,8 @@ class MasterpassScraper:
         capitalized = []
         for word in words:
             if not word: continue
-            if word[0] == 'i': capitalized.append('İ' + word[1:])
-            elif word[0] == 'ı': capitalized.append('I' + word[1:])
+            if word[0] == 'i': capitalized.append('İ' + word[1:]) # type: ignore
+            elif word[0] == 'ı': capitalized.append('I' + word[1:]) # type: ignore
             else: capitalized.append(word.capitalize())
         return " ".join(capitalized)
 
@@ -299,14 +299,14 @@ class MasterpassScraper:
             formatted_title = self._to_title_case(raw_title)
             slug = self._get_or_create_slug(formatted_title)
             
-            ai_cat = ai_data.get("sector", "Diğer")
-            sector = self.db.query(Sector).filter(Sector.slug == ai_cat).first()
+            ai_cat = ai_data.get("sector", "Diğer") # type: ignore
+            sector = self.db.query(Sector).filter(Sector.slug == ai_cat).first() # type: ignore
             if not sector:
                 sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
 
             start_date, end_date = None, None
             for key in ["start_date", "end_date"]:
-                val = ai_data.get(key)
+                val = ai_data.get(key) # type: ignore
                 if val:
                     try:
                         dt = datetime.strptime(val, "%Y-%m-%d")
@@ -317,10 +317,10 @@ class MasterpassScraper:
                     except Exception:
                         pass
 
-            conds = ai_data.get("conditions", [])
+            conds = ai_data.get("conditions", []) # type: ignore
             if isinstance(conds, str):
                 conds = [c.strip() for c in conds.split("\n") if c.strip()]
-            part = ai_data.get("participation")
+            part = ai_data.get("participation") # type: ignore
             if part:
                 conds.insert(0, f"KATILIM: {part}")
                 
@@ -329,63 +329,63 @@ class MasterpassScraper:
             # Prevent empty text formatting array issues by using newlines instead of string literals
             final_conditions = "\n".join(conds) if conds else "\n".join(data["conditions"])
 
-            cards_raw = ai_data.get("cards", [])
+            cards_raw = ai_data.get("cards", []) # type: ignore
             if isinstance(cards_raw, str):
                 cards_raw = [c.strip() for c in cards_raw.split(",") if c.strip()]
             eligible_cards_str = ", ".join(cards_raw) or "Mastercard"
 
             if existing:
-                existing.sector_id = sector.id if sector else None
+                existing.sector_id = sector.id if sector else None # type: ignore
                 existing.title = formatted_title
-                existing.description = ai_data.get("description") or formatted_title
-                existing.reward_text = ai_data.get("reward_text")
-                existing.reward_value = ai_data.get("reward_value")
-                existing.reward_type = ai_data.get("reward_type")
+                existing.description = ai_data.get("description") or formatted_title # type: ignore
+                existing.reward_text = ai_data.get("reward_text") # type: ignore
+                existing.reward_value = ai_data.get("reward_value") # type: ignore
+                existing.reward_type = ai_data.get("reward_type") # type: ignore
                 existing.conditions = final_conditions
                 existing.eligible_cards = eligible_cards_str
                 if data["image_url"]:
                     existing.image_url = data["image_url"]
                 existing.start_date = start_date or existing.start_date
                 existing.end_date = end_date or existing.end_date
-                existing.updated_at = datetime.utcnow()
+                existing.updated_at = func.now()
                 self.db.commit()
                 print(f"   ✅ Updated: {existing.title[:50]}")
                 campaign = existing
             else:
-                campaign = Campaign(
+                campaign = Campaign( # type: ignore
                     card_id=self.card_id, sector_id=sector.id if sector else None,
                     slug=slug, title=formatted_title,
-                    description=ai_data.get("description") or formatted_title,
-                    reward_text=ai_data.get("reward_text"),
-                    reward_value=ai_data.get("reward_value"),
-                    reward_type=ai_data.get("reward_type"),
+                    description=ai_data.get("description") or formatted_title, # type: ignore
+                    reward_text=ai_data.get("reward_text"), # type: ignore
+                    reward_value=ai_data.get("reward_value"), # type: ignore
+                    reward_type=ai_data.get("reward_type"), # type: ignore
                     conditions=final_conditions,
                     eligible_cards=eligible_cards_str,
                     image_url=data.get("image_url"),
                     start_date=start_date, end_date=end_date,
                     is_active=True, tracking_url=url,
-                    created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+                    created_at=func.now(), updated_at=func.now(),
                 )
                 self.db.add(campaign)
                 self.db.commit()
                 print(f"   ✅ Saved: {campaign.title[:50]}")
 
             # Brands
-            for b_name in ai_data.get("brands", []):
+            for b_name in ai_data.get("brands", []): # type: ignore
                 if len(b_name) < 2:
                     continue
                 # Hardcoded ignore because AI hallucinated sometimes
-                if b_name.lower() in ["masterpass", "mastercard"]:
+                if b_name.lower() in ["masterpass", "mastercard"]: # type: ignore
                     continue
                     
-                b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
+                b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-') # type: ignore
 
                 try:
                     brand = self.db.query(Brand).filter(
                         (Brand.slug == b_slug) | (Brand.name.ilike(b_name))
                     ).first()
                     if not brand:
-                        brand = Brand(name=self._to_title_case(b_name), slug=b_slug)
+                        brand = Brand(name=self._to_title_case(b_name), slug=b_slug) # type: ignore
                         self.db.add(brand)
                         self.db.commit()
                 except Exception as e:
@@ -430,11 +430,11 @@ class MasterpassScraper:
                 try:
                     res = self._process_campaign(url, force=force)
                     if res == "saved":
-                        success += 1
+                        success += 1 # type: ignore
                     elif res == "skipped":
-                        skipped += 1
+                        skipped += 1 # type: ignore
                     else:
-                        failed += 1
+                        failed += 1 # type: ignore
                 except Exception as e:
                     print(f"❌ Error: {e}")
                     if self.db:
