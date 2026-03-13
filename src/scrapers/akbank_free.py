@@ -1,5 +1,5 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 import sys
 import os
@@ -8,7 +8,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.scrapers.akbank_base import AkbankBaseScraper
+from src.scrapers.akbank_base import AkbankBaseScraper  # type: ignore # pyre-ignore[21]
 
 class AkbankFreeScraper(AkbankBaseScraper):
     """
@@ -21,7 +21,7 @@ class AkbankFreeScraper(AkbankBaseScraper):
             base_url="https://www.kartfree.com",
             list_url="https://www.kartfree.com/ajax/kampanya-ajax-free.aspx",
             referer_url="https://www.kartfree.com/kampanyalar",
-            list_params={'checkBox': '[]', 'searchWord': '""'}
+            list_params={'checkBox': '[]', 'searchWord': '""'}  # type: ignore # pyre-ignore[16,6]
         )
 
 if __name__ == "__main__":

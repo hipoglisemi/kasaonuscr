@@ -1,5 +1,5 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 """
 American Express Turkey Scraper
@@ -8,14 +8,14 @@ Powered by Playwright and AIParser
 
 import os
 import sys
-import time
-import requests
-import re
-import traceback
-from datetime import datetime
-from typing import Optional, Dict, Any, List
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup
+import time  # type: ignore # pyre-ignore[21]
+import requests  # type: ignore # pyre-ignore[21]
+import re  # type: ignore # pyre-ignore[21]
+import traceback  # type: ignore # pyre-ignore[21]
+from datetime import datetime  # type: ignore # pyre-ignore[21]
+from typing import Optional, Dict, Any, List  # type: ignore # pyre-ignore[21]
+from urllib.parse import urljoin  # type: ignore # pyre-ignore[21]
+from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
@@ -23,13 +23,13 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 try:
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv  # type: ignore # pyre-ignore[21]
     load_dotenv(os.path.join(project_root, '.env'))
 except Exception:
     pass
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine  # type: ignore # pyre-ignore[21]
+from sqlalchemy.orm import sessionmaker  # type: ignore # pyre-ignore[21]
 
 AIParser = None
 
@@ -37,8 +37,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL is not set")
     
-from src.scrapers.param import Bank, Card, Sector, Brand, CampaignBrand, Campaign, SECTOR_MAP
-from src.utils.logger_utils import log_scraper_execution
+from src.scrapers.param import Bank, Card, Sector, Brand, CampaignBrand, Campaign, SECTOR_MAP  # type: ignore # pyre-ignore[21]
+from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
 
 class AmericanExpressScraper:
     """American Express scraper - Playwright based"""
@@ -54,54 +54,54 @@ class AmericanExpressScraper:
         self.db = Session()
         
         try:
-            from src.services.ai_parser import AIParser as _AIParser
+            from src.services.ai_parser import AIParser as _AIParser  # type: ignore # pyre-ignore[21]
         except ImportError:
-            from services.ai_parser import AIParser as _AIParser
+            from services.ai_parser import AIParser as _AIParser  # type: ignore # pyre-ignore[21]
         global AIParser
         AIParser = _AIParser
 
         self.ai_parser = AIParser()
-        self.stats = {"found": 0, "saved": 0, "skipped": 0, "failed": 0, "errors": []}
+        self.stats = {"found": 0, "saved": 0, "skipped": 0, "failed": 0, "errors": []}  # type: ignore # pyre-ignore[16,6]
 
     @staticmethod
     def _slugify(text: str) -> str:
         """Generate a URL-safe slug from text"""
-        import unicodedata
+        import unicodedata  # type: ignore # pyre-ignore[21]
         text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
         text = re.sub(r'[^\w\s-]', '', text.lower()).strip()
-        return re.sub(r'[-\s]+', '-', text)[:120]
+        return re.sub(r'[-\s]+', '-', text)[:120]  # type: ignore # pyre-ignore[16,7,6]
         
     def _get_or_create_bank(self) -> Bank:
-        bank = self.db.query(Bank).filter_by(slug=self.BANK_SLUG).first()
+        bank = self.db.query(Bank).filter_by(slug=self.BANK_SLUG).first()  # type: ignore # pyre-ignore[16]
         if not bank:
             bank = Bank(name=self.BANK_NAME, slug=self.BANK_SLUG)
-            self.db.add(bank)
-            self.db.commit()
-        return bank
+            self.db.add(bank)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
+        return bank  # type: ignore # pyre-ignore[7]
 
     def _get_or_create_card(self, bank_id: int) -> Card:
-        card = self.db.query(Card).filter_by(slug=self.BANK_SLUG).first()
+        card = self.db.query(Card).filter_by(slug=self.BANK_SLUG).first()  # type: ignore # pyre-ignore[16]
         if not card:
             card = Card(
                 name="American Express", 
                 slug=self.BANK_SLUG, 
                 bank_id=bank_id
             )
-            self.db.add(card)
-            self.db.commit()
-        return card
+            self.db.add(card)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
+        return card  # type: ignore # pyre-ignore[7]
 
     def _get_sector(self, sector_name: str) -> Sector:
         slug = self._slugify(sector_name)
         if not slug:
             slug = "diger"
             
-        sector = self.db.query(Sector).filter_by(slug=slug).first()
+        sector = self.db.query(Sector).filter_by(slug=slug).first()  # type: ignore # pyre-ignore[16]
         if not sector:
-            sector = self.db.query(Sector).filter_by(slug="diger").first()
-        return sector
+            sector = self.db.query(Sector).filter_by(slug="diger").first()  # type: ignore # pyre-ignore[16]
+        return sector  # type: ignore # pyre-ignore[7]
 
-    def _get_or_create_brands(self, brand_names: List[str]) -> List[Brand]:
+    def _get_or_create_brands(self, brand_names: List[str]) -> List[Brand]:  # type: ignore # pyre-ignore[16,6]
         brands = []
         for name in brand_names:
             if not name or len(name.strip()) < 2:
@@ -111,29 +111,29 @@ class AmericanExpressScraper:
             
             # Anti-hallucination check specific to this scraper
             lower_name = brand_name.lower()
-            if any(forbidden in lower_name for forbidden in ["american", "express", "amex", "garanti", "bbva"]):
+            if any(forbidden in lower_name for forbidden in ["american", "express", "amex", "garanti", "bbva"]):  # type: ignore # pyre-ignore[16,6]
                 continue
 
             slug = self._slugify(brand_name)
             if not slug:
                 continue
                 
-            brand = self.db.query(Brand).filter_by(slug=slug).first()
+            brand = self.db.query(Brand).filter_by(slug=slug).first()  # type: ignore # pyre-ignore[16]
             if not brand:
                 try:
                     brand = Brand(name=brand_name, slug=slug)
-                    self.db.add(brand)
-                    self.db.commit()
+                    self.db.add(brand)  # type: ignore # pyre-ignore[16]
+                    self.db.commit()  # type: ignore # pyre-ignore[16]
                 except Exception as e:
-                    self.db.rollback()
-                    brand = self.db.query(Brand).filter_by(slug=slug).first()
+                    self.db.rollback()  # type: ignore # pyre-ignore[16]
+                    brand = self.db.query(Brand).filter_by(slug=slug).first()  # type: ignore # pyre-ignore[16]
             if brand:
                 brands.append(brand)
-        return brands
+        return brands  # type: ignore # pyre-ignore[7]
 
-    def run(self, max_runs: Optional[int] = None):
+    def run(self, max_runs: Optional[int] = None):  # type: ignore # pyre-ignore[16,6]
         """Execute the scraping process using simple requests"""
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting American Express scraper...")
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting American Express scraper...")  # type: ignore # pyre-ignore[16,6]
         start_time = time.time()
         
         headers = {
@@ -145,8 +145,8 @@ class AmericanExpressScraper:
         try:
             # 1. Init DB Relationships
             bank = self._get_or_create_bank()
-            card = self._get_or_create_card(bank.id)
-            self.card_id = card.id
+            card = self._get_or_create_card(bank.id)  # type: ignore # pyre-ignore[16]
+            self.card_id = card.id  # type: ignore # pyre-ignore[16]
             
             # 2. Get Campaign List
             print(f"Loading {self.CAMPAIGNS_URL}")
@@ -170,7 +170,7 @@ class AmericanExpressScraper:
             self.stats["found"] = len(campaign_links)
             
             if max_runs:
-                campaign_links = campaign_links[:max_runs]
+                campaign_links = campaign_links[:max_runs]  # type: ignore # pyre-ignore[16,6]
                 print(f"Limiting to {max_runs} campaigns.")
 
             # 3. Process Each Campaign Detail
@@ -181,8 +181,8 @@ class AmericanExpressScraper:
                 except Exception as e:
                     print(f"Error processing {link}: {e}")
                     # traceback.print_exc()
-                    self.stats["failed"] += 1
-                    self.stats["errors"].append({"url": link, "error": str(e)})
+                    self.stats["failed"] += 1  # type: ignore # pyre-ignore[58]
+                    self.stats["errors"].append({"url": link, "error": str(e)})  # type: ignore # pyre-ignore[16,6]
 
             log_scraper_execution(
                 db=self.db,
@@ -209,25 +209,25 @@ class AmericanExpressScraper:
                 error_details={"error": error_msg}
             )
         finally:
-            self.db.close()
+            self.db.close()  # type: ignore # pyre-ignore[16]
             elapsed = time.time() - start_time
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Extraction completed in {elapsed:.2f} seconds.")
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Extraction completed in {elapsed:.2f} seconds.")  # type: ignore # pyre-ignore[16,6]
             print(f"Stats: {self.stats}")
             
     def _process_campaign(self, url: str, headers: dict):
         # Check if already exists by URL
-        existing = self.db.query(Campaign).filter_by(tracking_url=url).first()
+        existing = self.db.query(Campaign).filter_by(tracking_url=url).first()  # type: ignore # pyre-ignore[16]
         if existing:
             print(f"  -> Already exists (url): {url}")
-            self.stats["skipped"] += 1
+            self.stats["skipped"] += 1  # type: ignore # pyre-ignore[58]
             return
         
         # Check by URL slug as well
         slug = url.rstrip('/').split('/')[-1]
-        existing_slug = self.db.query(Campaign).filter_by(slug=slug[:120]).first()
+        existing_slug = self.db.query(Campaign).filter_by(slug=slug[:120]).first()  # type: ignore # pyre-ignore[16,6]
         if existing_slug:
             print(f"  -> Already exists (slug): {slug}")
-            self.stats["skipped"] += 1
+            self.stats["skipped"] += 1  # type: ignore # pyre-ignore[58]
             return
 
         # Navigate to detail — force utf-8 decoding
@@ -286,7 +286,7 @@ class AmericanExpressScraper:
         for div in soup.find_all('div', class_=re.compile(r'public-sub|campaing')):
             text = div.get_text(separator=' ', strip=True)
             if 'tarihi:' in text.lower() or 'sektör:' in text.lower() or 'marka:' in text.lower():
-                header_info += text + "\n"
+                header_info += text + "\n"  # type: ignore # pyre-ignore[58]
         
         if header_info:
             full_conditions = f"--- KAMPANYA ÖZET BİLGİLERİ ---\n{header_info}\n--- DETAYLAR ---\n" + full_conditions
@@ -308,20 +308,20 @@ class AmericanExpressScraper:
         parsed_slug = self._slugify(final_title)
         
         # Check by AI-generated slug
-        existing_ai_slug = self.db.query(Campaign).filter(Campaign.slug == parsed_slug).first()
+        existing_ai_slug = self.db.query(Campaign).filter(Campaign.slug == parsed_slug).first()  # type: ignore # pyre-ignore[16]
         if existing_ai_slug:
             print(f"  -> Campaign already exists (ai slug): {parsed_slug}")
-            self.stats["skipped"] += 1
+            self.stats["skipped"] += 1  # type: ignore # pyre-ignore[58]
             return
 
         # Dates
         def parse_date(date_str):
-            if not date_str or str(date_str).lower() in ['none', 'null', 'belirtilmemiş', '']:
-                return None
+            if not date_str or str(date_str).lower() in ['none', 'null', 'belirtilmemiş', '']:  # type: ignore # pyre-ignore[16,6]
+                return None  # type: ignore # pyre-ignore[7]
             try:
-                return datetime.strptime(str(date_str), '%Y-%m-%d').date()
+                return datetime.strptime(str(date_str), '%Y-%m-%d').date()  # type: ignore # pyre-ignore[7]
             except ValueError:
-                return None
+                return None  # type: ignore # pyre-ignore[7]
 
         start_date = parse_date(ai_data.get('start_date'))
         end_date = parse_date(ai_data.get('end_date'))
@@ -353,7 +353,7 @@ class AmericanExpressScraper:
             conditions_lines.append(parsed_conditions)
             
         if not conditions_lines:
-            conditions_lines.append(full_conditions[:1500] + "...") # fallback
+            conditions_lines.append(full_conditions[:1500] + "...") # fallback  # type: ignore # pyre-ignore[16,6]
             
         # Format as bullet points (except for our custom headers)
         final_conditions = "\n".join(
@@ -366,7 +366,7 @@ class AmericanExpressScraper:
             slug=parsed_slug,
             description=ai_data.get("description") or final_title,
             image_url=img_url,
-            sector_id=sector.id,
+            sector_id=sector.id,  # type: ignore # pyre-ignore[16]
             card_id=self.card_id,
             start_date=start_date,
             end_date=end_date,
@@ -380,27 +380,27 @@ class AmericanExpressScraper:
             tracking_url=url,
         )
 
-        self.db.add(campaign)
-        self.db.commit()
+        self.db.add(campaign)  # type: ignore # pyre-ignore[16]
+        self.db.commit()  # type: ignore # pyre-ignore[16]
 
         # ─── 6. Brands Linkage ───────────────────────────────────────────────────
         brands_data = ai_data.get('brands', [])
         if brands_data:
             brands = self._get_or_create_brands(brands_data)
             for brand in brands:
-                exists = self.db.query(CampaignBrand).filter_by(
-                    campaign_id=campaign.id, brand_id=brand.id
+                exists = self.db.query(CampaignBrand).filter_by(  # type: ignore # pyre-ignore[16]
+                    campaign_id=campaign.id, brand_id=brand.id  # type: ignore # pyre-ignore[16]
                 ).first()
                 if not exists:
-                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)
-                    self.db.add(cb)
-            self.db.commit()
+                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)  # type: ignore # pyre-ignore[16]
+                    self.db.add(cb)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
 
         print(f"  -> Saved successfully (ID: {campaign.id}, img: {bool(img_url)})")
-        self.stats["saved"] += 1
+        self.stats["saved"] += 1  # type: ignore # pyre-ignore[58]
 
 if __name__ == "__main__":
-    import argparse
+    import argparse  # type: ignore # pyre-ignore[21]
     parser = argparse.ArgumentParser(description="American Express Scraper")
     parser.add_argument("--limit", type=int, help="Maximum number of campaigns to process")
     args = parser.parse_args()

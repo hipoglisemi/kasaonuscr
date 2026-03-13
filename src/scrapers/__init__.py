@@ -1,40 +1,40 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 try:
-    from .garanti_bonus import GarantiBonusScraper
+    from .garanti_bonus import GarantiBonusScraper  # type: ignore # pyre-ignore[21]
 except ImportError: GarantiBonusScraper = None
 
 try:
-    from .garanti_milesandsmiles import GarantiMilesAndSmilesScraper
+    from .garanti_milesandsmiles import GarantiMilesAndSmilesScraper  # type: ignore # pyre-ignore[21]
 except ImportError: GarantiMilesAndSmilesScraper = None
 
 try:
-    from .garanti_shopandfly import GarantiShopAndFlyScraper
+    from .garanti_shopandfly import GarantiShopAndFlyScraper  # type: ignore # pyre-ignore[21]
 except ImportError: GarantiShopAndFlyScraper = None
 
 try:
-    from .vodafone import VodafoneScraper
+    from .vodafone import VodafoneScraper  # type: ignore # pyre-ignore[21]
 except ImportError: VodafoneScraper = None
 
 try:
-    from .akbank_axess import AkbankAxessScraper
+    from .akbank_axess import AkbankAxessScraper  # type: ignore # pyre-ignore[21]
 except ImportError: AkbankAxessScraper = None
 
 try:
-    from .akbank_free import AkbankFreeScraper
+    from .akbank_free import AkbankFreeScraper  # type: ignore # pyre-ignore[21]
 except ImportError: AkbankFreeScraper = None
 
 try:
-    from .akbank_business import AkbankBusinessScraper
+    from .akbank_business import AkbankBusinessScraper  # type: ignore # pyre-ignore[21]
 except ImportError: AkbankBusinessScraper = None
 
 try:
-    from .enpara import EnparaScraper
+    from .enpara import EnparaScraper  # type: ignore # pyre-ignore[21]
 except ImportError: EnparaScraper = None
 
 try:
-    from .turktelekom import TurkTelekomScraper
+    from .turktelekom import TurkTelekomScraper  # type: ignore # pyre-ignore[21]
 except ImportError: TurkTelekomScraper = None
 
 __all__ = [

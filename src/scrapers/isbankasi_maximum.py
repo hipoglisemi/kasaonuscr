@@ -1,36 +1,35 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 
 import sys
 import os
-import time
-import re
-import uuid
-import traceback
-from datetime import datetime
-from typing import Optional, Dict, Any, List
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+import time  # type: ignore # pyre-ignore[21]
+import re  # type: ignore # pyre-ignore[21]
+import uuid  # type: ignore # pyre-ignore[21]
+import traceback  # type: ignore # pyre-ignore[21]
+from datetime import datetime  # type: ignore # pyre-ignore[21]
+from typing import Optional, Dict, Any, List  # type: ignore # pyre-ignore[21]
+from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
+from urllib.parse import urljoin  # type: ignore # pyre-ignore[21]
 
-# Path setup - same as ziraat.py
 # Path setup
-project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-print(f"[DEBUG] project_root: {project_root}")
+print(f"[DEBUG] project_root: {project_root}")  # type: ignore # pyre-ignore[16,6]
 if isinstance(sys.path, list):
-    print(f"[DEBUG] sys.path[:3]: {sys.path[:3]}")
+    print(f"[DEBUG] sys.path[:3]: {sys.path[:3]}")  # type: ignore # pyre-ignore[16,6]
 
-from src.utils.logger_utils import log_scraper_execution  # type: ignore
+from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
 
 # Load Env - same pattern as ziraat.py
 try:
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv  # type: ignore # pyre-ignore[21]
     load_dotenv()
 except Exception as e:
-    print(f"[DEBUG] dotenv load failed: {e}")
+    print(f"[DEBUG] dotenv load failed: {e}")  # type: ignore # pyre-ignore[16,6]
 try:
     with open(os.path.join(project_root, '.env'), 'r') as f:
         for line in f:
@@ -41,12 +40,12 @@ try:
 except Exception:
     pass
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Numeric, Text, ForeignKey
-from sqlalchemy.orm import sessionmaker, relationship, declarative_base
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Numeric, Text, ForeignKey  # type: ignore # pyre-ignore[21]
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base  # type: ignore # pyre-ignore[21]
+from sqlalchemy.dialects.postgresql import UUID  # type: ignore # pyre-ignore[21]
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-print(f"[DEBUG] DATABASE_URL set: {'YES' if DATABASE_URL else 'NO'}")
+print(f"[DEBUG] DATABASE_URL set: {'YES' if DATABASE_URL else 'NO'}")  # type: ignore # pyre-ignore[16,6]
 
 # AIParser is lazy-imported in __init__ to avoid google.generativeai hang
 AIParser = None
@@ -54,7 +53,7 @@ AIParser = None
 
 
 
-from src.models import Bank, Card, Sector, Brand, CampaignBrand, Campaign
+from src.models import Bank, Card, Sector, Brand, CampaignBrand, Campaign  # type: ignore # pyre-ignore[21]
 
 
 SECTOR_MAP = {
@@ -95,19 +94,19 @@ class IsbankMaximumScraper:
         }
         # Lazy import of AIParser to avoid google.generativeai hanging at module import time
         try:
-            from src.services.ai_parser import AIParser
+            from src.services.ai_parser import AIParser  # type: ignore # pyre-ignore[21]
             self.parser = AIParser()
         except ImportError:
             try:
-                from services.ai_parser import AIParser
+                from services.ai_parser import AIParser  # type: ignore # pyre-ignore[21]
                 self.parser = AIParser()
             except ImportError as e:
-                print(f"[DEBUG] AIParser import FAILED: {e}")
+                print(f"[DEBUG] AIParser import FAILED: {e}")  # type: ignore # pyre-ignore[16,6]
                 raise
         print("[DEBUG] AIParser initialized")
 
     def _get_or_create_bank(self) -> int:
-        bank = self.session.query(Bank).filter(
+        bank = self.session.query(Bank).filter(  # type: ignore # pyre-ignore[16]
             Bank.slug.in_([
                 'i-sbankasi',   # gerçek DB slug
                 'isbank',       # seed.ts slug
@@ -115,44 +114,44 @@ class IsbankMaximumScraper:
             ])
         ).first()
         if not bank:
-            bank = self.session.query(Bank).filter(
+            bank = self.session.query(Bank).filter(  # type: ignore # pyre-ignore[16]
                 Bank.name.ilike('%İş Bank%') | Bank.name.ilike('%İşbank%')
             ).first()
         if not bank:
             print(f"⚠️  {self.BANK_NAME} not found in DB, creating...")
             bank = Bank(name=self.BANK_NAME, slug='isbank')
-            self.session.add(bank)
-            self.session.commit()
+            self.session.add(bank)  # type: ignore # pyre-ignore[16]
+            self.session.commit()  # type: ignore # pyre-ignore[16]
         if bank and hasattr(bank, 'id'):
-            return bank.id
-        return 0 # Or handle as error
+            return bank.id  # type: ignore # pyre-ignore[7]
+        return 0 # Or handle as error  # type: ignore # pyre-ignore[7]
 
     def _get_or_create_card(self, bank_id: int) -> int:
-        card = self.session.query(Card).filter(
+        card = self.session.query(Card).filter(  # type: ignore # pyre-ignore[16]
             Card.slug.in_([
                 'maximum-card', 'maximum', 'isbank-maximum',
                 'isbankasi-maximum', 'maximumcard',
             ])
         ).first()
         if not card:
-            card = self.session.query(Card).filter(
+            card = self.session.query(Card).filter(  # type: ignore # pyre-ignore[16]
                 Card.name.ilike('%Maximum%'),
                 Card.bank_id == bank_id
             ).first()
         if not card:
             print(f"⚠️  Card 'maximum-card' not found, creating...")
             card = Card(bank_id=bank_id, name='Maximum Card', slug='maximum-card', is_active=True)
-            self.session.add(card)
-            self.session.commit()
+            self.session.add(card)  # type: ignore # pyre-ignore[16]
+            self.session.commit()  # type: ignore # pyre-ignore[16]
         if card and hasattr(card, 'id'):
-            return card.id
-        return 0 # Or handle as error
+            return card.id  # type: ignore # pyre-ignore[7]
+        return 0 # Or handle as error  # type: ignore # pyre-ignore[7]
 
-    def _fetch_campaign_urls(self, limit: Optional[int] = None) -> tuple[List[str], List[str]]:
+    def _fetch_campaign_urls(self, limit: Optional[int] = None) -> tuple[List[str], List[str]]:  # type: ignore # pyre-ignore[16,6]
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL}...")
         
-        import requests
-        import urllib3
+        import requests  # type: ignore # pyre-ignore[21]
+        import urllib3  # type: ignore # pyre-ignore[21]
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         # We fetch the first page. Maximum usually loads a bunch of HTML blocks, and potentially has a load-more API.
@@ -166,12 +165,12 @@ class IsbankMaximumScraper:
             # Extract links
             links = soup.find_all("a", href=True)
             for a in links:
-                if "/kampanyalar/" in a["href"] and "arsiv" not in a["href"] and "gecmis" not in a["href"] and len(a["href"]) > 20:
+                if "/kampanyalar/" in a["href"] and "arsiv" not in a["href"] and "gecmis" not in a["href"] and len(a["href"]) > 20:  # type: ignore # pyre-ignore[16,6]
                     all_campaign_links.append(a)
                     
         except Exception as e:
             print(f"   ❌ Failed to fetch campaign list: {e}")
-            return [], []
+            return [], []  # type: ignore # pyre-ignore[7]
 
         excluded_suffixes = [
             "-kampanyalari",
@@ -217,7 +216,7 @@ class IsbankMaximumScraper:
             
             full_url = urljoin(self.BASE_URL, href)
             if full_url in seen: continue
-            seen.add(full_url)
+            seen.add(full_url)  # type: ignore # pyre-ignore[16]
             
             # Check for expired status based on class or text
             parent_text = ""
@@ -235,18 +234,18 @@ class IsbankMaximumScraper:
                 unique_urls.append(full_url)
                 
         if limit is not None:
-            unique_urls = list(unique_urls)[:int(limit)]  # type: ignore
+            unique_urls = list(unique_urls)[:int(limit)]  # type: ignore # pyre-ignore[16,6]
 
         print(f"✅ Found {len(unique_urls)} active campaigns, and {len(unique_expired)} expired campaigns")
-        return unique_urls, unique_expired
+        return unique_urls, unique_expired  # type: ignore # pyre-ignore[7]
 
-    def _extract_campaign_data(self, url: str) -> Optional[Dict[str, Any]]:
+    def _extract_campaign_data(self, url: str) -> Optional[Dict[str, Any]]:  # type: ignore # pyre-ignore[16,6]
         try:
             success = False
             html_content = ""
             for attempt in range(3):
                 try:
-                    import requests
+                    import requests  # type: ignore # pyre-ignore[21]
                     time.sleep(1.5 + attempt) # modest delay
                     response = requests.get(
                         url, 
@@ -264,9 +263,9 @@ class IsbankMaximumScraper:
             
             if not success:
                 print(f"      ❌ Could not load detail page after 3 attempts: {url}")
-                return None
+                return None  # type: ignore # pyre-ignore[7]
                 
-            import urllib3
+            import urllib3  # type: ignore # pyre-ignore[21]
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
             soup = BeautifulSoup(html_content, "html.parser")
@@ -274,7 +273,7 @@ class IsbankMaximumScraper:
             title = self._clean(title_el.text) if title_el else "Başlık Yok"
 
             if "gecmis" in url or "geçmiş" in title.lower():
-                return None
+                return None  # type: ignore # pyre-ignore[7]
 
             # 404 kontrolü - Geçersiz/silinmiş sayfa filtresi
             page_text = soup.get_text()
@@ -285,11 +284,11 @@ class IsbankMaximumScraper:
                 "Bu kampanya sona ermiştir",
             ]):
                 print(f"   ⏭️  Skipped (404/expired page): {url}")
-                return None
+                return None  # type: ignore # pyre-ignore[7]
 
             # Date
             date_text = ""
-            for sel in ["span[id$='KampanyaTarihleri']", ".campaign-date", ".date"]:
+            for sel in ["span[id$='KampanyaTarihleri']", ".campaign-date", ".date"]:  # type: ignore # pyre-ignore[16,6]
                 el = soup.select_one(sel)
                 if el:
                     date_text = self._clean(el.text)
@@ -300,13 +299,13 @@ class IsbankMaximumScraper:
             if end_iso:
                 try:
                     if datetime.strptime(end_iso, "%Y-%m-%d").date() < datetime.now().date():
-                        return None
+                        return None  # type: ignore # pyre-ignore[7]
                 except Exception:
                     pass
 
             # Participation
             participation_text = ""
-            for sel in ["span[id$='KatilimSekli']"]:
+            for sel in ["span[id$='KatilimSekli']"]:  # type: ignore # pyre-ignore[16,6]
                 el = soup.select_one(sel)
                 if el:
                     participation_text = self._clean(el.text)
@@ -318,9 +317,9 @@ class IsbankMaximumScraper:
             if desc_el:
                 for br in desc_el.find_all("br"):
                     br.replace_with("\n")
-                full_text = "\n".join([self._clean(l) for l in desc_el.get_text().split("\n") if len(self._clean(l)) > 0])
+                full_text = "\n".join([self._clean(l) for l in desc_el.get_text().split("\n") if len(self._clean(l)) > 0])  # type: ignore # pyre-ignore[58]
             else:
-                full_text = self._clean(soup.get_text())[:2000]  # type: ignore
+                full_text = self._clean(soup.get_text())[:2000]  # type: ignore # pyre-ignore[16,6]
 
             # Image
             image_url = None
@@ -331,7 +330,7 @@ class IsbankMaximumScraper:
                     if isinstance(src, str):
                         image_url = urljoin(self.BASE_URL, src)
 
-            return {
+            return {  # type: ignore # pyre-ignore[7]
                 "title": title, "image_url": image_url,
                 "date_text": date_text, "full_text": full_text,
                 "source_url": url,
@@ -339,11 +338,11 @@ class IsbankMaximumScraper:
             }
         except Exception as e:
             print(f"   ⚠️ Error extracting {url}: {e}")
-            return None
+            return None  # type: ignore # pyre-ignore[7]
 
-    def _parse_date(self, date_text: str, is_end: bool = False) -> Optional[str]:
+    def _parse_date(self, date_text: str, is_end: bool = False) -> Optional[str]:  # type: ignore # pyre-ignore[16,6]
         if not date_text:
-            return None
+            return None  # type: ignore # pyre-ignore[7]
         text = date_text.replace("İ", "i").lower()
         
         # Check dd.mm.yyyy format first: 1.1.2026 - 31.12.2026
@@ -352,8 +351,8 @@ class IsbankMaximumScraper:
         if match_dot:
             d1, m1, y1, d2, m2, y2 = match_dot.groups()
             if is_end:
-                return f"{y2}-{m2.zfill(2)}-{d2.zfill(2)}"
-            return f"{y1}-{m1.zfill(2)}-{d1.zfill(2)}"
+                return f"{y2}-{m2.zfill(2)}-{d2.zfill(2)}"  # type: ignore # pyre-ignore[7]
+            return f"{y1}-{m1.zfill(2)}-{d1.zfill(2)}"  # type: ignore # pyre-ignore[7]
             
         months = {
             "ocak": "01", "şubat": "02", "mart": "03", "nisan": "04",
@@ -368,16 +367,16 @@ class IsbankMaximumScraper:
                 if not month1:
                     month1 = month2
                 if is_end:
-                    return f"{year}-{months.get(month2, '12')}-{str(day2).zfill(2)}"
-                return f"{year}-{months.get(month1, '01')}-{str(day1).zfill(2)}"
+                    return f"{year}-{months.get(month2, '12')}-{str(day2).zfill(2)}"  # type: ignore # pyre-ignore[7]
+                return f"{year}-{months.get(month1, '01')}-{str(day1).zfill(2)}"  # type: ignore # pyre-ignore[7]
         except Exception:
             pass
-        return None
+        return None  # type: ignore # pyre-ignore[7]
 
     def _clean(self, text: str) -> str:
         if not text:
-            return ""
-        return re.sub(r"\s+", " ", text.replace("\n", " ").replace("\r", "")).strip()
+            return ""  # type: ignore # pyre-ignore[7]
+        return re.sub(r"\s+", " ", text.replace("\n", " ").replace("\r", "")).strip()  # type: ignore # pyre-ignore[7]
 
     def _to_title_case(self, text: Any) -> str:
         if not text: return ""
@@ -390,25 +389,25 @@ class IsbankMaximumScraper:
         capitalized_words = []
         for word in words:
             if not word: continue
-            if word[0] == 'i': capitalized_words.append('İ' + word[1:])  # type: ignore
-            elif word[0] == 'ı': capitalized_words.append('I' + word[1:])  # type: ignore
-            else: capitalized_words.append(word.capitalize())  # type: ignore
-        return "join".join(capitalized_words)
+            if word[0] == 'i': capitalized_words.append('İ' + word[1:])  # type: ignore # pyre-ignore[16,6]
+            elif word[0] == 'ı': capitalized_words.append('I' + word[1:])  # type: ignore # pyre-ignore[16,6]
+            else: capitalized_words.append(word.capitalize())
+        return "join".join(capitalized_words)  # type: ignore # pyre-ignore[7]
 
     def _get_or_create_slug(self, title: str) -> str:
         base = re.sub(r'[^a-z0-9]+', '-', re.sub(
             r'[şğüöçıŞĞÜÖÇİ]',
-            lambda m: 'sgupcisgupci'['şğüöçıŞĞÜÖÇİ'.index(m.group())],
+            lambda m: 'sgupcisgupci'['şğüöçıŞĞÜÖÇİ'.index(m.group())],  # type: ignore # pyre-ignore[16,6]
             title.lower()
         )).strip('-')
         slug = base
         counter = 1
-        while self.session.query(Campaign).filter(Campaign.slug == slug).first():
+        while self.session.query(Campaign).filter(Campaign.slug == slug).first():  # type: ignore # pyre-ignore[16]
             slug = f"{base}-{counter}"
             counter = int(counter or 0) + 1
-        return slug
+        return slug  # type: ignore # pyre-ignore[7]
 
-    def _save_campaign(self, data: Dict[str, Any], bank_id: int, card_id: int) -> Optional[int]:
+    def _save_campaign(self, data: Dict[str, Any], bank_id: int, card_id: int) -> Optional[int]:  # type: ignore # pyre-ignore[16,6]
         try:
             raw_title = data.get("title") or ""
             formatted_title = self._to_title_case(raw_title)
@@ -416,9 +415,9 @@ class IsbankMaximumScraper:
 
             ai_cat = data.get("sector", "Diğer")
             db_sector_name = ai_cat
-            sector = self.session.query(Sector).filter(Sector.slug == db_sector_name).first()
+            sector = self.session.query(Sector).filter(Sector.slug == db_sector_name).first()  # type: ignore # pyre-ignore[16]
             if not sector:
-                sector = self.session.query(Sector).filter(Sector.slug == 'diger').first()
+                sector = self.session.query(Sector).filter(Sector.slug == 'diger').first()  # type: ignore # pyre-ignore[16]
 
             start_date = None
             end_date = None
@@ -457,10 +456,10 @@ class IsbankMaximumScraper:
 
             campaign = Campaign(
                 card_id=card_id,
-                sector_id=sector.id if sector else None,
+                sector_id=sector.id if sector else None,  # type: ignore # pyre-ignore[16]
                 slug=slug,
                 title=formatted_title,
-                description=data.get("description") or data["title"][:200],
+                description=data.get("description") or data["title"][:200],  # type: ignore # pyre-ignore[16,6]
                 reward_text=data.get("reward_text"),
                 reward_value=data.get("reward_value"),
                 reward_type=data.get("reward_type"),
@@ -475,50 +474,50 @@ class IsbankMaximumScraper:
                 updated_at=datetime.utcnow(),
             )
             if self.session is None: return None
-            self.session.add(campaign)
-            self.session.commit()
+            self.session.add(campaign)  # type: ignore # pyre-ignore[16]
+            self.session.commit()  # type: ignore # pyre-ignore[16]
 
             # Brands
-            for b_name in data.get("brands", []):
+            for b_name in data.get("brands", []):  # type: ignore # pyre-ignore[16,6]
                 if len(b_name) < 2:
                     continue
                 b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
                 
                 try:
-                    brand = self.session.query(Brand).filter(
+                    brand = self.session.query(Brand).filter(  # type: ignore # pyre-ignore[16]
                         (Brand.slug == b_slug) | (Brand.name.ilike(b_name))
                     ).first()
                     if not brand:
                         brand = Brand(name=self._to_title_case(b_name), slug=b_slug)
-                        self.session.add(brand)
-                        self.session.commit()
+                        self.session.add(brand)  # type: ignore # pyre-ignore[16]
+                        self.session.commit()  # type: ignore # pyre-ignore[16]
                 except Exception as e:
-                    self.session.rollback()
+                    self.session.rollback()  # type: ignore # pyre-ignore[16]
                     print(f"   ⚠️ Brand save failed for {b_name}: {e}")
                     continue
 
                 try:    
-                    link = self.session.query(CampaignBrand).filter(
-                        CampaignBrand.campaign_id == campaign.id,
-                        CampaignBrand.brand_id == brand.id
+                    link = self.session.query(CampaignBrand).filter(  # type: ignore # pyre-ignore[16]
+                        CampaignBrand.campaign_id == campaign.id,  # type: ignore # pyre-ignore[16]
+                        CampaignBrand.brand_id == brand.id  # type: ignore # pyre-ignore[16]
                     ).first()
                     if not link:
-                        self.session.add(CampaignBrand(campaign_id=campaign.id, brand_id=brand.id))
-                        self.session.commit()
+                        self.session.add(CampaignBrand(campaign_id=campaign.id, brand_id=brand.id))  # type: ignore # pyre-ignore[16]
+                        self.session.commit()  # type: ignore # pyre-ignore[16]
                 except Exception as e:
-                    self.session.rollback()
+                    self.session.rollback()  # type: ignore # pyre-ignore[16]
                     print(f"   ⚠️ CampaignBrand link failed: {e}")
                     continue
 
-            print(f"   ✅ Saved: {campaign.title[:50]}")
-            return campaign.id
+            print(f"   ✅ Saved: {campaign.title[:50]}")  # type: ignore # pyre-ignore[16,6]
+            return campaign.id  # type: ignore # pyre-ignore[7]
         except Exception as e:
-            self.session.rollback()
+            self.session.rollback()  # type: ignore # pyre-ignore[16]
             print(f"   ❌ Save failed: {e}")
             traceback.print_exc()
-            return None
+            return None  # type: ignore # pyre-ignore[7]
 
-    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):  # type: ignore # pyre-ignore[16,6]
         """Main execution flow"""
 
         bank_id = self._get_or_create_bank()
@@ -541,7 +540,7 @@ class IsbankMaximumScraper:
                 print(f"🛑 Found {len(expired_urls)} expired campaigns on list page. Checking DB for early end...")
                 for e_url in expired_urls:
                     try:
-                        existing = self.session.query(Campaign).filter(
+                        existing = self.session.query(Campaign).filter(  # type: ignore # pyre-ignore[16]
                             Campaign.tracking_url == e_url,
                             Campaign.card_id == card_id,
                             Campaign.is_active == True
@@ -549,9 +548,9 @@ class IsbankMaximumScraper:
                         if existing:
                             print(f"   🛑 Deleting expired campaign from DB: {existing.title}")
                             self.session.delete(existing)
-                            self.session.commit()
+                            self.session.commit()  # type: ignore # pyre-ignore[16]
                     except Exception as e:
-                        self.session.rollback()
+                        self.session.rollback()  # type: ignore # pyre-ignore[16]
                         print(f"   ⚠️ Could not update expired campaign {e_url}: {e}")
                         
             urls = active_urls
@@ -559,7 +558,7 @@ class IsbankMaximumScraper:
             success: int = 0
             skipped: int = 0
             failed: int = 0
-            error_details: List[Dict[str, Any]] = []
+            error_details: List[Dict[str, Any]] = []  # type: ignore # pyre-ignore[16,6]
             
             for i, url in enumerate(urls, 1):
                 if limit is not None and i > int(limit):
@@ -569,19 +568,19 @@ class IsbankMaximumScraper:
                 print(f"🔍 Processing: {url}")
                 
                 # DB Cache query
-                existing = self.session.query(Campaign).filter(
+                existing = self.session.query(Campaign).filter(  # type: ignore # pyre-ignore[16]
                     Campaign.tracking_url == url,
                     Campaign.card_id == card_id
                 ).first()
                 if existing and not force:
-                    print(f"   ℹ️  Already exists in DB: [{existing.id}] {existing.title[:40]}")
-                    skipped = int(skipped or 0) + 1  # type: ignore
+                    print(f"   ℹ️  Already exists in DB: [{existing.id}] {existing.title[:40]}")  # type: ignore # pyre-ignore[16,6]
+                    skipped = int(skipped or 0) + 1
                     continue
                     
                 try:
                     res_data = self._extract_campaign_data(url)
                     if not res_data:
-                        skipped += 1
+                        skipped += 1  # type: ignore # pyre-ignore[58]
                         continue
                         
                     try:
@@ -601,16 +600,16 @@ class IsbankMaximumScraper:
                         
                     saved_id = self._save_campaign(res_data, bank_id, card_id)
                     if saved_id:
-                        success += 1
+                        success += 1  # type: ignore # pyre-ignore[58]
                         results.append(saved_id)
                     else:
-                        failed += 1
+                        failed += 1  # type: ignore # pyre-ignore[58]
                         error_details.append({"url": url, "error": "Save returned None"})
                         
                 except Exception as e:
                     print(f"❌ Error during details extraction: {e}")
-                    self.session.rollback()
-                    failed += 1
+                    self.session.rollback()  # type: ignore # pyre-ignore[16]
+                    failed += 1  # type: ignore # pyre-ignore[58]
                     error_details.append({"url": url, "error": str(e)})
                 
                 time.sleep(1.5)
@@ -618,8 +617,8 @@ class IsbankMaximumScraper:
             print(f"\n🏁 Finished. {len(urls)} found, {success} saved, {skipped} skipped, {failed} errors")
             
             status = "SUCCESS"
-            if int(failed or 0) > 0:  # type: ignore
-                status = "PARTIAL" if (int(success or 0) > 0 or int(skipped or 0) > 0) else "FAILED"  # type: ignore
+            if int(failed or 0) > 0:  # type: ignore # pyre-ignore[58]
+                status = "PARTIAL" if (int(success or 0) > 0 or int(skipped or 0) > 0) else "FAILED"  # type: ignore # pyre-ignore[58]
                 
             log_scraper_execution(
                 db=self.session,
@@ -652,15 +651,15 @@ class IsbankMaximumScraper:
             except:
                 pass
             finally:
-                err_db.close()
+                err_db.close()  # type: ignore # pyre-ignore[16]
                 
             raise
         finally:
-            self.session.close()
+            self.session.close()  # type: ignore # pyre-ignore[16]
 
 
 if __name__ == "__main__":
-    import argparse
+    import argparse  # type: ignore # pyre-ignore[21]
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Limit the number of campaigns to scrape")
     parser.add_argument("--urls", type=str, default=None, help="Comma separated list of URLs to scrape")

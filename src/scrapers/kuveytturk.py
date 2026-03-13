@@ -1,30 +1,30 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 import sys
 import os
-import time
-import re
-import uuid
-import asyncio
-import random
-from datetime import datetime
-from typing import Optional, Dict, Any, List, Tuple
-from urllib.parse import urljoin
+import time  # type: ignore # pyre-ignore[21]
+import re  # type: ignore # pyre-ignore[21]
+import uuid  # type: ignore # pyre-ignore[21]
+import asyncio  # type: ignore # pyre-ignore[21]
+import random  # type: ignore # pyre-ignore[21]
+from datetime import datetime  # type: ignore # pyre-ignore[21]
+from typing import Optional, Dict, Any, List, Tuple  # type: ignore # pyre-ignore[21]
+from urllib.parse import urljoin  # type: ignore # pyre-ignore[21]
 
-from playwright.async_api import async_playwright, Page # type: ignore
-from bs4 import BeautifulSoup # type: ignore
-from sqlalchemy.orm import Session # type: ignore
+from playwright.async_api import async_playwright, Page  # type: ignore # pyre-ignore[21]
+from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
+from sqlalchemy.orm import Session  # type: ignore # pyre-ignore[21]
 
 # Path setup to ensure imports work correctly
 project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.database import get_db_session # type: ignore
-from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand # type: ignore
-from src.services.ai_parser import AIParser # type: ignore
-from src.utils.logger_utils import log_scraper_execution # type: ignore
+from src.database import get_db_session  # type: ignore # pyre-ignore[21]
+from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand  # type: ignore # pyre-ignore[21]
+from src.services.ai_parser import AIParser  # type: ignore # pyre-ignore[21]
+from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
 
 class KuveytTurkScraper:
     """
@@ -44,12 +44,12 @@ class KuveytTurkScraper:
         self.parser = AIParser()
         
         # Cache
-        self.bank_cache: Optional[Bank] = None
-        self.card_cache: Dict[str, Card] = {}
-        self.sector_cache: Dict[str, Sector] = {}
-        self.brand_cache: Dict[str, Brand] = {}
+        self.bank_cache: Optional[Bank] = None  # type: ignore # pyre-ignore[16,6]
+        self.card_cache: Dict[str, Card] = {}  # type: ignore # pyre-ignore[16,6]
+        self.sector_cache: Dict[str, Sector] = {}  # type: ignore # pyre-ignore[16,6]
+        self.brand_cache: Dict[str, Brand] = {}  # type: ignore # pyre-ignore[16,6]
 
-    def run(self, limit: Optional[int] = None):
+    def run(self, limit: Optional[int] = None):  # type: ignore # pyre-ignore[16,6]
         """Entry point for synchronous execution"""
         if limit: self.max_campaigns = limit
         asyncio.run(self._run_async())
@@ -81,7 +81,7 @@ class KuveytTurkScraper:
                 # 1. Get List
                 page = await context.new_page()
                 urls, expired_urls = await self._scrape_list(page)
-                await page.close()
+                await page.close()  # type: ignore # pyre-ignore[16]
                 
                 # Disable expired
                 self.disable_expired_campaigns(expired_urls)
@@ -90,15 +90,15 @@ class KuveytTurkScraper:
                 
                 # Limit
                 if len(urls) > self.max_campaigns:
-                    urls = urls[:self.max_campaigns] # type: ignore
+                    urls = urls[:self.max_campaigns]  # type: ignore # pyre-ignore[16,6]
                 
                 # 2. Process Details
                 for i, url in enumerate(urls, 1):
-                    print(f"\n[{i}/{len(urls)}] Processing: {url}")
-                    stats['total'] += 1
+                    print(f"\n[{i}/{len(urls)}] Processing: {url}")  # type: ignore # pyre-ignore[16,6]
+                    stats['total'] += 1  # type: ignore # pyre-ignore[58]
                     try:
                         # Existing check
-                        existing = self.db.query(Campaign).filter_by(tracking_url=url).first() # type: ignore
+                        existing = self.db.query(Campaign).filter_by(tracking_url=url).first()  # type: ignore # pyre-ignore[16]
                         is_test_mode = os.environ.get('TEST_MODE') == '1'
                         
                         if existing and not is_test_mode:
@@ -111,13 +111,13 @@ class KuveytTurkScraper:
                         await asyncio.sleep(random.uniform(1, 2))
                     except Exception as e:
                         print(f"      ❌ Error processing {url}: {e}")
-                        stats['failed'] += 1
+                        stats['failed'] += 1  # type: ignore # pyre-ignore[58]
                 
-                await browser.close()
+                await browser.close()  # type: ignore # pyre-ignore[16]
                 
             elapsed = time.time() - start_time
             print(f"\n🎉 {self.BANK_NAME} scraping completed in {elapsed:.1f}s")
-            print(f"📊 Stats: {stats['total']} processed | {stats['new']} new | {stats['updated']} updated | {stats.get('skipped', 0)} skipped | {stats['failed']} failed")
+            print(f"📊 Stats: {stats['total']} processed | {stats['new']} new | {stats['updated']} updated | {stats.get('skipped', 0)} skipped | {stats['failed']} failed")  # type: ignore # pyre-ignore[16,6]
             
             log_scraper_execution(
                 db=self.db,
@@ -131,13 +131,13 @@ class KuveytTurkScraper:
 
         except Exception as e:
             print(f"❌ Fatal error in Kuveyt Turk scraper: {e}")
-            import traceback
+            import traceback  # type: ignore # pyre-ignore[21]
             traceback.print_exc()
         finally:
             if self.db:
-                self.db.close()
+                self.db.close()  # type: ignore # pyre-ignore[16]
 
-    async def _scrape_list(self, page: Any) -> Tuple[List[str], List[str]]:
+    async def _scrape_list(self, page: Any) -> Tuple[List[str], List[str]]:  # type: ignore # pyre-ignore[16,6]
         """Handles 'Load More' button to get all campaigns"""
         print(f"   🌐 Loading campaigns list: {self.CAMPAIGNS_URL}")
         active_urls = set()
@@ -160,7 +160,7 @@ class KuveytTurkScraper:
                     current_count = await page.evaluate('''() => {
                         const links = Array.from(document.querySelectorAll("a[href*='/kampanyalar/']"));
                         const unique = new Set(links.map(a => a.href).filter(h => !h.includes('biten-kampanyalar') && h.includes('/kampanyalar/')));
-                        return unique.size;
+                        return unique.size;  # type: ignore # pyre-ignore[7]
                     }''')
                     print(f"      📊 Current unique campaigns visible: {current_count}")
                     
@@ -174,7 +174,7 @@ class KuveytTurkScraper:
                         const btn = document.querySelector('.show-more');
                         if (btn) btn.click();
                     }''')
-                    click_count += 1
+                    click_count += 1  # type: ignore # pyre-ignore[58]
                     print(f"      👇 Clicked 'Daha Fazla Göster' ({click_count})...")
                     
                     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -184,11 +184,11 @@ class KuveytTurkScraper:
                     new_count = await page.evaluate('''() => {
                         const links = Array.from(document.querySelectorAll("a[href*='/kampanyalar/']"));
                         const unique = new Set(links.map(a => a.href).filter(h => !h.includes('biten-kampanyalar') && h.includes('/kampanyalar/')));
-                        return unique.size;
+                        return unique.size;  # type: ignore # pyre-ignore[7]
                     }''')
                     
                     if new_count <= current_count:
-                        consecutive_no_growth += 1
+                        consecutive_no_growth += 1  # type: ignore # pyre-ignore[58]
                         print(f"      ⚠️ No new campaigns after click (attempt {consecutive_no_growth}/3)...")
                         if consecutive_no_growth >= 3:
                             print(f"      ✅ Pagination done (no growth for 3 consecutive clicks).")
@@ -211,33 +211,33 @@ class KuveytTurkScraper:
                 href = a.get("href", "")
                 if "/kampanyalar/" in href and "/biten-kampanyalar" not in href:
                     full_url = urljoin(self.BASE_URL, href)
-                    potential_urls.add(full_url)
+                    potential_urls.add(full_url)  # type: ignore # pyre-ignore[16]
             
             print(f"      🎯 Found {len(potential_urls)} unique campaign links.")
             
             for full_url in potential_urls:
                 # Check for "expired" indicators in URL
-                if any(x in full_url.lower() for x in ["/arsiv", "/gecmis"]):
-                    expired_urls.add(full_url)
+                if any(x in full_url.lower() for x in ["/arsiv", "/gecmis"]):  # type: ignore # pyre-ignore[16,6]
+                    expired_urls.add(full_url)  # type: ignore # pyre-ignore[16]
                     continue
                 
                 # For Kuveyt Turk, we consider them active unless in /biten-kampanyalar (already filtered)
-                active_urls.add(full_url)
+                active_urls.add(full_url)  # type: ignore # pyre-ignore[16]
                     
         except Exception as e:
             print(f"      ❌ List load failed: {e}")
             
-        return list(active_urls), list(expired_urls)
+        return list(active_urls), list(expired_urls)  # type: ignore # pyre-ignore[7]
 
-    async def _scrape_single_detail(self, context: Any, url: str, bank_id: Any, card_id: Any, stats: Any) -> bool: # type: ignore
+    async def _scrape_single_detail(self, context: Any, url: str, bank_id: Any, card_id: Any, stats: Any) -> bool:
         # Database Pre-check (Skip Logic)
         try:
             with get_db_session() as db:
-                existing = db.query(Campaign).filter(Campaign.tracking_url == url).first()
+                existing = db.query(Campaign).filter(Campaign.tracking_url == url).first()  # type: ignore # pyre-ignore[16]
                 if existing:
                     print(f"   ⏭️ Skipped (Already exists): {url}")
                     stats["skipped"] = stats.get("skipped", 0) + 1
-                    return True
+                    return True  # type: ignore # pyre-ignore[7]
         except Exception as e:
             print(f"   ⚠️ DB Pre-check error: {e}")
 
@@ -266,12 +266,12 @@ class KuveytTurkScraper:
                     list_items = text_col.select("ul.list > li")
                     if list_items:
                         main_description = self._clean(list_items[0].get_text())
-                        conditions_text = "\n".join([f"- {self._clean(li.get_text())}" for li in list_items[1:]])
+                        conditions_text = "\n".join([f"- {self._clean(li.get_text())}" for li in list_items[1:]])  # type: ignore # pyre-ignore[16,6]
             
             if not main_description:
                 content_div = soup.select_one(".search-content, .subpage-wrapper .container, .ck-content")
                 if content_div:
-                    main_description = self._clean(content_div.get_text())[:800] # type: ignore
+                    main_description = self._clean(content_div.get_text())[:800]  # type: ignore # pyre-ignore[16,6]
             
             # Image
             image_url = None
@@ -280,19 +280,19 @@ class KuveytTurkScraper:
                 src = img.get("src") or img.get("data-src")
                 if not src or src.startswith("data:"): continue
                 lower_src = src.lower()
-                if any(x in lower_src for x in ["campaign", "kampanya", "detail", ".vsf", "banner"]):
-                    image_url = urljoin(self.BASE_URL, src) # type: ignore
+                if any(x in lower_src for x in ["campaign", "kampanya", "detail", ".vsf", "banner"]):  # type: ignore # pyre-ignore[16,6]
+                    image_url = urljoin(self.BASE_URL, src)
                     break
             
             if not image_url and content_row:
                 img_el = content_row.select_one("img")
                 if img_el:
-                    image_url = urljoin(self.BASE_URL, img_el.get("src") or img_el.get("data-src")) # type: ignore
+                    image_url = urljoin(self.BASE_URL, img_el.get("src") or img_el.get("data-src"))
 
             # Text for AI
             full_raw_text = f"BAŞLIK: {title}\n\n"
-            full_raw_text += f"KAMPANYA ANA ÖZETİ (AÇIKLAMA): {main_description}\n\n"
-            full_raw_text += f"TÜM KAMPANYA KOŞULLARI VE KATILIM DETAYLARI:\n{conditions_text}\n\n"
+            full_raw_text += f"KAMPANYA ANA ÖZETİ (AÇIKLAMA): {main_description}\n\n"  # type: ignore # pyre-ignore[58]
+            full_raw_text += f"TÜM KAMPANYA KOŞULLARI VE KATILIM DETAYLARI:\n{conditions_text}\n\n"  # type: ignore # pyre-ignore[58]
             
             print("   🤖 Parsing with AI...")
             parsed_data = self.parser.parse_campaign_data(
@@ -301,8 +301,8 @@ class KuveytTurkScraper:
             
             if not parsed_data:
                 print("   ❌ AI Parse failed")
-                stats['failed'] += 1
-                return False
+                stats['failed'] += 1  # type: ignore # pyre-ignore[58]
+                return False  # type: ignore # pyre-ignore[7]
                 
             raw_data = {
                 "title": title,
@@ -315,30 +315,30 @@ class KuveytTurkScraper:
             
             is_new, success = self._save_campaign(bank_id, card_id, parsed_data, raw_data)
             if success:
-                if is_new: stats['new'] += 1
-                else: stats['updated'] += 1
-                return True
+                if is_new: stats['new'] += 1  # type: ignore # pyre-ignore[58,16,6]
+                else: stats['updated'] += 1  # type: ignore # pyre-ignore[58,16,6]
+                return True  # type: ignore # pyre-ignore[7]
             else:
-                stats['failed'] += 1
-                return False
+                stats['failed'] += 1  # type: ignore # pyre-ignore[58]
+                return False  # type: ignore # pyre-ignore[7]
                 
         except Exception as e:
             print(f"      ❌ Detail error: {e}")
-            return False
+            return False  # type: ignore # pyre-ignore[7]
         finally:
-            await page.close()
+            await page.close()  # type: ignore # pyre-ignore[16]
 
-    def _save_campaign(self, bank_id: int, card_id: int, parsed_data: Dict[str, Any], raw_data: Dict[str, Any]):
+    def _save_campaign(self, bank_id: int, card_id: int, parsed_data: Dict[str, Any], raw_data: Dict[str, Any]):  # type: ignore # pyre-ignore[16,6]
         title = raw_data["title"]
         slug = self._generate_slug(title)
         source_url = raw_data["source_url"]
 
-        campaign = self.db.query(Campaign).filter_by(tracking_url=source_url).first()
+        campaign = self.db.query(Campaign).filter_by(tracking_url=source_url).first()  # type: ignore # pyre-ignore[16]
         is_new = not campaign
 
         if not campaign:
             campaign = Campaign(tracking_url=source_url, card_id=card_id)
-            self.db.add(campaign)
+            self.db.add(campaign)  # type: ignore # pyre-ignore[16]
 
         campaign.slug = slug
         campaign.title = title
@@ -352,7 +352,7 @@ class KuveytTurkScraper:
         campaign.start_date = self._parse_date_string(parsed_data.get("start_date")) or datetime.now().date()
         campaign.end_date = self._parse_date_string(parsed_data.get("end_date"))
         
-        campaign.sector_id = self._get_sector_id(parsed_data.get("sector")) # type: ignore
+        campaign.sector_id = self._get_sector_id(parsed_data.get("sector"))
         
         # eligible_cards: ai_parser'dan liste veya string gelebilir — her zaman string kaydet
         cards_raw = parsed_data.get("cards") or []
@@ -361,7 +361,7 @@ class KuveytTurkScraper:
         else:
             campaign.eligible_cards = str(cards_raw).strip() or None
         if campaign.eligible_cards and len(campaign.eligible_cards) > 255:
-            campaign.eligible_cards = campaign.eligible_cards[:255]
+            campaign.eligible_cards = campaign.eligible_cards[:255]  # type: ignore # pyre-ignore[16,6]
 
         # conditions: ai_parser'dan liste veya string gelebilir — her zaman \n-joined string kaydet
         conditions_raw = parsed_data.get("conditions") or []
@@ -377,87 +377,87 @@ class KuveytTurkScraper:
         campaign.ai_marketing_text = f"📱 Katılım: {parsed_data.get('participation', 'Otomatik')}"
 
         try:
-            self.db.flush()
+            self.db.flush()  # type: ignore # pyre-ignore[16]
             
             # Brands
             brands_list = parsed_data.get("brands", [])
             if isinstance(brands_list, list):
-                self.db.query(CampaignBrand).filter_by(campaign_id=campaign.id).delete()
+                self.db.query(CampaignBrand).filter_by(campaign_id=campaign.id).delete()  # type: ignore # pyre-ignore[16]
                 for brand_name in brands_list:
                     if not brand_name: continue
                     brand_obj = self._get_or_create_brand(brand_name)
-                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=brand_obj.id) # type: ignore
+                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=brand_obj.id)  # type: ignore # pyre-ignore[16]
                     self.db.merge(cb)
                     
-            self.db.commit()
+            self.db.commit()  # type: ignore # pyre-ignore[16]
             print(f"      ✅ Saved: {title}")
-            return is_new, True
+            return is_new, True  # type: ignore # pyre-ignore[7]
         except Exception as e:
-            self.db.rollback()
+            self.db.rollback()  # type: ignore # pyre-ignore[16]
             print(f"      ❌ DB Error: {e}")
-            return False, False
+            return False, False  # type: ignore # pyre-ignore[7]
 
     # --- HELPERS ---
     def _load_cache(self):
-        bank = self.db.query(Bank).filter(Bank.slug.in_(['kuveyt-turk', 'kuveytturk'])).first()
+        bank = self.db.query(Bank).filter(Bank.slug.in_(['kuveyt-turk', 'kuveytturk'])).first()  # type: ignore # pyre-ignore[16]
         if not bank:
             bank = Bank(name="Kuveyt Türk", slug="kuveyt-turk", is_active=True)
-            self.db.add(bank)
-            self.db.commit()
+            self.db.add(bank)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
         self.bank_cache = bank
         
-        for s in self.db.query(Sector).all():
+        for s in self.db.query(Sector).all():  # type: ignore # pyre-ignore[16]
             self.sector_cache[s.slug] = s
 
     def _get_or_create_card(self, name: str) -> Card:
         key = name.lower()
-        if key in self.card_cache: return self.card_cache[key]
-        card = self.db.query(Card).filter(Card.bank_id == self.bank_cache.id, Card.name == name).first() # type: ignore
+        if key in self.card_cache: return self.card_cache[key]  # type: ignore # pyre-ignore[16,6]
+        card = self.db.query(Card).filter(Card.bank_id == self.bank_cache.id, Card.name == name).first()  # type: ignore # pyre-ignore[16]
         if not card:
-            card = Card(bank_id=self.bank_cache.id, name=name, slug=self._generate_slug(name), is_active=True) # type: ignore
-            self.db.add(card)
-            self.db.flush()
+            card = Card(bank_id=self.bank_cache.id, name=name, slug=self._generate_slug(name), is_active=True)  # type: ignore # pyre-ignore[16]
+            self.db.add(card)  # type: ignore # pyre-ignore[16]
+            self.db.flush()  # type: ignore # pyre-ignore[16]
         self.card_cache[key] = card
-        return card
+        return card  # type: ignore # pyre-ignore[7]
 
     def _get_or_create_brand(self, name: str) -> Brand:
         slug = self._generate_slug(name)
-        if slug in self.brand_cache: return self.brand_cache[slug]
-        brand = self.db.query(Brand).filter((Brand.slug == slug) | (Brand.name == name)).first()
+        if slug in self.brand_cache: return self.brand_cache[slug]  # type: ignore # pyre-ignore[16,6]
+        brand = self.db.query(Brand).filter((Brand.slug == slug) | (Brand.name == name)).first()  # type: ignore # pyre-ignore[16]
         if not brand:
             brand = Brand(name=name, slug=slug, is_active=True)
-            self.db.add(brand)
-            self.db.flush()
+            self.db.add(brand)  # type: ignore # pyre-ignore[16]
+            self.db.flush()  # type: ignore # pyre-ignore[16]
         self.brand_cache[slug] = brand
-        return brand
+        return brand  # type: ignore # pyre-ignore[7]
 
-    def _get_sector_id(self, slug: str) -> Optional[int]:
-        if slug in self.sector_cache: return self.sector_cache[slug].id
-        return self.sector_cache.get("diger", {}).get("id")
+    def _get_sector_id(self, slug: str) -> Optional[int]:  # type: ignore # pyre-ignore[16,6]
+        if slug in self.sector_cache: return self.sector_cache[slug].id  # type: ignore # pyre-ignore[16,6]
+        return self.sector_cache.get("diger", {}).get("id")  # type: ignore # pyre-ignore[7]
 
-    def _parse_date_string(self, date_str: Optional[str]) -> Optional[Any]:
+    def _parse_date_string(self, date_str: Optional[str]) -> Optional[Any]:  # type: ignore # pyre-ignore[16,6]
         if not date_str or date_str == "None": return None
         try:
-            return datetime.strptime(date_str.split('T')[0], "%Y-%m-%d").date()
+            return datetime.strptime(date_str.split('T')[0], "%Y-%m-%d").date()  # type: ignore # pyre-ignore[7]
         except: return None
 
     def _clean(self, text: str) -> str:
-        return re.sub(r'\s+', ' ', text.replace('\xa0', ' ')).strip()
+        return re.sub(r'\s+', ' ', text.replace('\xa0', ' ')).strip()  # type: ignore # pyre-ignore[7]
 
     def _generate_slug(self, title: str) -> str:
         slug = str(title).lower().replace('ı', 'i').replace('ğ', 'g').replace('ü', 'u').replace('ş', 's').replace('ö', 'o').replace('ç', 'c')
         slug = re.sub(r'[^a-z0-9\s-]', '', slug)
-        return re.sub(r'[\s-]+', '-', slug).strip('-')
+        return re.sub(r'[\s-]+', '-', slug).strip('-')  # type: ignore # pyre-ignore[7]
 
-    def disable_expired_campaigns(self, expired_urls: List[str]):
+    def disable_expired_campaigns(self, expired_urls: List[str]):  # type: ignore # pyre-ignore[16,6]
         if not expired_urls: return
         count = 0
         for url in expired_urls:
-            camp = self.db.query(Campaign).filter_by(tracking_url=url, is_active=True).first()
+            camp = self.db.query(Campaign).filter_by(tracking_url=url, is_active=True).first()  # type: ignore # pyre-ignore[16]
             if camp:
                 camp.is_active = False
-                count += 1 # type: ignore
-        if count: self.db.commit()
+                count += 1  # type: ignore # pyre-ignore[58]
+        if count: self.db.commit()  # type: ignore # pyre-ignore[16]
 
 if __name__ == "__main__":
     limit_arg = int(sys.argv[1]) if len(sys.argv) > 1 else 999

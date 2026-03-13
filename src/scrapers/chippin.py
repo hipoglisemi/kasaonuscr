@@ -1,25 +1,25 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 import os
-import re
+import re  # type: ignore # pyre-ignore[21]
 import sys
-import time
-import json
-import requests # type: ignore
-import urllib3 # type: ignore
-import random
-from datetime import datetime
-from typing import Optional, List, Dict, Any
-from bs4 import BeautifulSoup # type: ignore
-from dotenv import load_dotenv # type: ignore
+import time  # type: ignore # pyre-ignore[21]
+import json  # type: ignore # pyre-ignore[21]
+import requests  # type: ignore # pyre-ignore[21]
+import urllib3  # type: ignore # pyre-ignore[21]
+import random  # type: ignore # pyre-ignore[21]
+from datetime import datetime  # type: ignore # pyre-ignore[21]
+from typing import Optional, List, Dict, Any  # type: ignore # pyre-ignore[21]
+from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
+from dotenv import load_dotenv  # type: ignore # pyre-ignore[21]
 
 # Ensure src is in path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from sqlalchemy import create_engine, text # type: ignore
-from services.ai_parser import AIParser # type: ignore
-from services.brand_normalizer import normalize_brand_name, cleanup_brands # type: ignore
+from sqlalchemy import create_engine, text  # type: ignore # pyre-ignore[21]
+from services.ai_parser import AIParser  # type: ignore # pyre-ignore[21]
+from services.brand_normalizer import normalize_brand_name, cleanup_brands  # type: ignore # pyre-ignore[21]
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -50,16 +50,16 @@ def slugify(text: str) -> str:
     text = text.translate(tr_map)
     text = re.sub(r'[^a-z0-9\s-]', '', text)
     text = re.sub(r'[\s-]+', '-', text).strip('-')
-    return text
+    return text  # type: ignore # pyre-ignore[7]
 
 def html_to_text(html_content: str) -> str:
     if not html_content:
-        return ""
+        return ""  # type: ignore # pyre-ignore[7]
     soup = BeautifulSoup(html_content, "html.parser")
     text = soup.get_text(separator="\n", strip=True)
-    return text
+    return text  # type: ignore # pyre-ignore[7]
 
-def filter_conditions(conditions: List[str]) -> List[str]:
+def filter_conditions(conditions: List[str]) -> List[str]:  # type: ignore # pyre-ignore[16,6]
     """Removes legal disclaimers and standard texts."""
     blacklist = [
         "değişiklik yapma hakkı", 
@@ -77,7 +77,7 @@ def filter_conditions(conditions: List[str]) -> List[str]:
         if any(b in c_lower for b in blacklist):
             continue
         clean.append(c)
-    return clean
+    return clean  # type: ignore # pyre-ignore[7]
 
 class ChippinScraper:
     def __init__(self):
@@ -111,7 +111,7 @@ class ChippinScraper:
     def _get_or_create_card(self, card_def: dict) -> int:
         slug = card_def["slug"]
         if slug in self._card_cache:
-            return self._card_cache[slug]
+            return self._card_cache[slug]  # type: ignore # pyre-ignore[7]
         try:
             with self.engine.begin() as conn:
                 result = conn.execute(
@@ -121,23 +121,23 @@ class ChippinScraper:
                 if result:
                     card_id = result[0]
                 else:
-                    print(f"   💳 Creating Card: {card_def['name']}")
+                    print(f"   💳 Creating Card: {card_def['name']}")  # type: ignore # pyre-ignore[16,6]
                     result = conn.execute(text("""
                         INSERT INTO cards (name, slug, bank_id, card_type, is_active, created_at)
                         VALUES (:name, :slug, :bank_id, 'credit', true, NOW())
                         RETURNING id
-                    """), {"name": card_def["name"], "slug": slug, "bank_id": self.bank_id}).fetchone()
+                    """), {"name": card_def["name"], "slug": slug, "bank_id": self.bank_id}).fetchone()  # type: ignore # pyre-ignore[16,6]
                     card_id = result[0]
                 self._card_cache[slug] = card_id
-                return card_id
+                return card_id  # type: ignore # pyre-ignore[7]
         except Exception as e:
             print(f"   ❌ Card setup failed: {e}")
             raise
 
-    def _resolve_sector_by_name(self, sector_name: str) -> Optional[int]:
+    def _resolve_sector_by_name(self, sector_name: str) -> Optional[int]:  # type: ignore # pyre-ignore[16,6]
         """Find sector ID by slug. (AI parser returns a sector slug like 'market-gida')"""
         if not sector_name:
-            return None
+            return None  # type: ignore # pyre-ignore[7]
         try:
             with self.engine.connect() as conn:
                 # Search by slug since AI is strictly instructed to return valid slugs
@@ -145,9 +145,9 @@ class ChippinScraper:
                     text("SELECT id FROM sectors WHERE slug = :slug LIMIT 1"),
                     {"slug": sector_name}
                 ).fetchone()
-                return result[0] if result else None
+                return result[0] if result else None  # type: ignore # pyre-ignore[7]
         except Exception:
-            return None
+            return None  # type: ignore # pyre-ignore[7]
 
     def run(self, limit: int = 1000):
         print("🚀 Starting Chippin Scraper (Requests + JSON)...")
@@ -187,13 +187,13 @@ class ChippinScraper:
             
             print(f"   ✅ Found {len(campaigns)} campaigns in JSON.")
             
-            campaigns_to_process = campaigns[:limit]
+            campaigns_to_process = campaigns[:limit]  # type: ignore # pyre-ignore[16,6]
             
             for idx, c in enumerate(campaigns_to_process):
                 title = c.get("webName")
                 if not title: continue
                 
-                print(f"[{idx+1}/{len(campaigns_to_process)}] {title[:50]}...")
+                print(f"[{idx+1}/{len(campaigns_to_process)}] {title[:50]}...")  # type: ignore # pyre-ignore[16,6]
                 
                 # Image Handling (Vector Placeholders)
                 placeholder_idx = random.randint(1, 9)
@@ -210,7 +210,7 @@ class ChippinScraper:
                         existing = conn.execute(text("SELECT id FROM campaigns WHERE tracking_url = :url"), {"url": tracking_url}).fetchone()
                         if existing:
                             print(f"   ⏭️ Skipped (Already exists): {tracking_url}")
-                            skipped_count += 1
+                            skipped_count += 1  # type: ignore # pyre-ignore[58]
                             continue
                 except Exception as e:
                     print(f"   ❌ DB Pre-check Error: {e}")
@@ -244,7 +244,7 @@ class ChippinScraper:
                 eligible_cards = ai_data.get("cards")
                 eligible_str = ", ".join(eligible_cards) if eligible_cards else "Chippin"
                 if eligible_str and len(eligible_str) > 255: 
-                    eligible_str = eligible_str[:255] # type: ignore
+                    eligible_str = eligible_str[:255]  # type: ignore # pyre-ignore[16,6]
                     
                 conditions_lines.extend(ai_data.get("conditions", []))
                 conditions_lines = filter_conditions(conditions_lines)
@@ -300,7 +300,7 @@ class ChippinScraper:
                             RETURNING id
                         """), campaign_data)
                         campaign_id = result.fetchone()[0]
-                        success_count += 1
+                        success_count += 1  # type: ignore # pyre-ignore[58]
 
                         # Brands
                         if ai_data.get("brands") and campaign_id:
@@ -319,23 +319,23 @@ class ChippinScraper:
                                     conn.execute(text("INSERT INTO campaign_brands (campaign_id, brand_id) VALUES (:cid, CAST(:bid AS uuid))"), {"cid": campaign_id, "bid": bid})
                 except Exception as e:
                     print(f"   ❌ DB Error: {e}")
-                    failed_count += 1
+                    failed_count += 1  # type: ignore # pyre-ignore[58]
                     error_details.append({"url": tracking_url, "error": f"DB Error: {str(e)}"})
 
         except Exception as e:
             print(f"   ❌ Error: {e}")
-            failed_count += 1
+            failed_count += 1  # type: ignore # pyre-ignore[58]
             error_details.append({"url": url, "error": str(e)})
             
         print(f"✅ Özet: {len(campaigns_to_process)} bulundu, {success_count} eklendi, {skipped_count} atlandı, {failed_count} hata aldı.")
 
         status = "SUCCESS"
-        if failed_count > 0:
-             status = "PARTIAL" if (success_count > 0 or skipped_count > 0) else "FAILED"
+        if failed_count > 0:  # type: ignore # pyre-ignore[58]
+             status = "PARTIAL" if (success_count > 0 or skipped_count > 0) else "FAILED"  # type: ignore # pyre-ignore[58]
 
         try:
-             from src.utils.logger_utils import log_scraper_execution # type: ignore
-             from sqlalchemy.orm import sessionmaker # type: ignore
+             from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
+             from sqlalchemy.orm import sessionmaker  # type: ignore # pyre-ignore[21]
              Session = sessionmaker(bind=self.engine)
              with Session() as session:
                   log_scraper_execution(
@@ -352,7 +352,7 @@ class ChippinScraper:
              print(f"⚠️ Could not save scraper log: {log_e}")
 
 if __name__ == "__main__":
-    import argparse
+    import argparse  # type: ignore # pyre-ignore[21]
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=1000)
     args = parser.parse_args()

@@ -1,5 +1,5 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 """
 Masterpass Plus Scraper
@@ -8,15 +8,15 @@ Powered by Playwright
 
 import os
 import sys
-import time
-import re
-import uuid
-import traceback
-import json
-from datetime import datetime
-from typing import Optional, Dict, Any, List
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup # type: ignore
+import time  # type: ignore # pyre-ignore[21]
+import re  # type: ignore # pyre-ignore[21]
+import uuid  # type: ignore # pyre-ignore[21]
+import traceback  # type: ignore # pyre-ignore[21]
+import json  # type: ignore # pyre-ignore[21]
+from datetime import datetime  # type: ignore # pyre-ignore[21]
+from typing import Optional, Dict, Any, List  # type: ignore # pyre-ignore[21]
+from urllib.parse import urljoin  # type: ignore # pyre-ignore[21]
+from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
 
 # Fix sys.path to ensure src is discoverable
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -29,16 +29,16 @@ else:
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from dotenv import load_dotenv # type: ignore
+from dotenv import load_dotenv  # type: ignore # pyre-ignore[21]
 load_dotenv(os.path.join(project_root, '.env'))
 
-from sqlalchemy import create_engine, text, func # type: ignore
-from sqlalchemy.orm import sessionmaker # type: ignore
+from sqlalchemy import create_engine, text, func  # type: ignore # pyre-ignore[21]
+from sqlalchemy.orm import sessionmaker  # type: ignore # pyre-ignore[21]
 
 # Import unified models and database session
-from src.database import engine, get_db_session # type: ignore
-from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand # type: ignore
-from src.utils.logger_utils import log_scraper_execution # type: ignore
+from src.database import engine, get_db_session  # type: ignore # pyre-ignore[21]
+from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand  # type: ignore # pyre-ignore[21]
+from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
 
 # AIParser is lazy-imported in __init__ to avoid google.generativeai hang
 AIParser = None
@@ -58,9 +58,9 @@ class MasterpassScraper:
         
         # Lazy import of AIParser
         try:
-            from src.services.ai_parser import AIParser as _AIParser # type: ignore
+            from src.services.ai_parser import AIParser as _AIParser  # type: ignore # pyre-ignore[21]
         except ImportError:
-            from services.ai_parser import AIParser as _AIParser # type: ignore
+            from services.ai_parser import AIParser as _AIParser  # type: ignore # pyre-ignore[21]
         self.parser = _AIParser()
 
         self.page = None
@@ -69,26 +69,26 @@ class MasterpassScraper:
         self._init_card()
 
     def _init_card(self):
-        bank = self.db.query(Bank).filter(Bank.slug == self.BANK_SLUG).first()
+        bank = self.db.query(Bank).filter(Bank.slug == self.BANK_SLUG).first()  # type: ignore # pyre-ignore[16]
         if not bank:
             print(f"⚠️  Masterpass not found in DB, creating...")
             bank = Bank(name=self.BANK_NAME, slug=self.BANK_SLUG)
-            self.db.add(bank)
-            self.db.commit()
+            self.db.add(bank)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
         print(f"✅ Bank: {bank.name} (ID: {bank.id})")
 
-        card = self.db.query(Card).filter(Card.slug == 'mastercard').first()
+        card = self.db.query(Card).filter(Card.slug == 'mastercard').first()  # type: ignore # pyre-ignore[16]
         if not card:
             print(f"⚠️  Card 'mastercard' not found, creating...")
-            card = Card(bank_id=bank.id, name='Mastercard', slug='mastercard', is_active=True)
-            self.db.add(card)
-            self.db.commit()
-        self.card_id = card.id
+            card = Card(bank_id=bank.id, name='Mastercard', slug='mastercard', is_active=True)  # type: ignore # pyre-ignore[16]
+            self.db.add(card)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
+        self.card_id = card.id  # type: ignore # pyre-ignore[16]
         print(f"✅ Card: {card.name} (ID: {self.card_id})")
 
     def _start_browser(self):
-        from playwright.sync_api import sync_playwright # type: ignore
-        self.playwright = sync_playwright().start() # type: ignore
+        from playwright.sync_api import sync_playwright  # type: ignore # pyre-ignore[21]
+        self.playwright = sync_playwright().start()
         
         is_ci = os.getenv("GITHUB_ACTIONS") == "true" or os.getenv("CI") == "true"
         connected = False
@@ -96,29 +96,29 @@ class MasterpassScraper:
         if not is_ci:
             try:
                 print("   🔌 Attempting to connect to local Chrome debug instance at http://localhost:9222...")
-                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222") # type: ignore
+                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
                 connected = True
                 print("   ✅ Connected to local existing Chrome instance")
                 
-                if len(self.browser.contexts) > 0: # type: ignore
-                    context = self.browser.contexts[0] # type: ignore
+                if len(self.browser.contexts) > 0:  # type: ignore # pyre-ignore[58]
+                    context = self.browser.contexts[0]
                 else:
-                    context = self.browser.new_context() # type: ignore
+                    context = self.browser.new_context()
                     
                 self.page = context.new_page()
-                self.page.set_default_timeout(120000) # type: ignore
+                self.page.set_default_timeout(120000)
                 return
             except Exception as e:
                 pass
                 
         if not connected:
-            self.browser = self.playwright.chromium.launch( # type: ignore
+            self.browser = self.playwright.chromium.launch(
                 headless=True,
                 args=["--no-sandbox", "--disable-setuid-sandbox",
                       "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1920,1080",
                       "--disable-blink-features=AutomationControlled"]
             )
-            context = self.browser.new_context( # type: ignore
+            context = self.browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 locale="tr-TR",
@@ -126,22 +126,22 @@ class MasterpassScraper:
             )
             context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             self.page = context.new_page()
-            self.page.set_default_timeout(120000) # type: ignore
+            self.page.set_default_timeout(120000)
 
     def _stop_browser(self):
         try:
-            if self.page: self.page.close() # type: ignore
-            if self.browser: self.browser.close() # type: ignore
-            if self.playwright: self.playwright.stop() # type: ignore
+            if self.page: self.page.close()  # type: ignore # pyre-ignore[16]
+            if self.browser: self.browser.close()  # type: ignore # pyre-ignore[16]
+            if self.playwright: self.playwright.stop()
         except Exception:
             pass
 
-    def _fetch_campaign_urls(self, limit: Optional[int] = None) -> List[str]:
+    def _fetch_campaign_urls(self, limit: Optional[int] = None) -> List[str]:  # type: ignore # pyre-ignore[16,6]
         print(f"📥 Fetching campaign list from {self.CAMPAIGNS_URL} ...")
-        self.page.goto(self.CAMPAIGNS_URL, wait_until="networkidle", timeout=120000) # type: ignore
+        self.page.goto(self.CAMPAIGNS_URL, wait_until="networkidle", timeout=120000)
         time.sleep(3)
 
-        soup = BeautifulSoup(self.page.content(), "html.parser") # type: ignore
+        soup = BeautifulSoup(self.page.content(), "html.parser")
         
         a_tags = soup.find_all('a', href=True)
         all_links = []
@@ -157,17 +157,17 @@ class MasterpassScraper:
 
         unique_urls = list(dict.fromkeys(all_links))
         if limit:
-            unique_urls = unique_urls[:limit] # type: ignore
+            unique_urls = unique_urls[:limit]  # type: ignore # pyre-ignore[16,6]
             
         print(f"✅ Found {len(unique_urls)} campaigns")
-        return unique_urls
+        return unique_urls  # type: ignore # pyre-ignore[7]
 
-    def _extract_campaign_data(self, url: str) -> Optional[Dict[str, Any]]:
+    def _extract_campaign_data(self, url: str) -> Optional[Dict[str, Any]]:  # type: ignore # pyre-ignore[16,6]
         try:
             success = False
             for attempt in range(2):
                 try:
-                    self.page.goto(url, wait_until="networkidle", timeout=60000) # type: ignore
+                    self.page.goto(url, wait_until="networkidle", timeout=60000)
                     time.sleep(2)
                     success = True
                     break
@@ -177,9 +177,9 @@ class MasterpassScraper:
             
             if not success:
                 print(f"      ❌ Could not load detail page: {url}")
-                return None
+                return None  # type: ignore # pyre-ignore[7]
                 
-            soup = BeautifulSoup(self.page.content(), "html.parser") # type: ignore
+            soup = BeautifulSoup(self.page.content(), "html.parser")
             
             # Title
             title_el = soup.find('h1')
@@ -199,7 +199,7 @@ class MasterpassScraper:
             conditions = []
             for div in soup.find_all('div'):
                 text = div.get_text(separator='\\n').strip()
-                if ('Koşul' in text or len(text) > 300) and 'Anasayfa' not in text[:50] and len(text) < 10000:
+                if ('Koşul' in text or len(text) > 300) and 'Anasayfa' not in text[:50] and len(text) < 10000:  # type: ignore # pyre-ignore[16,6]
                     lines = [self._clean(t) for t in text.split('\\n') if len(self._clean(t)) > 10]
                     conditions.extend(lines)
                     break # Usually there's only one main long div
@@ -211,21 +211,21 @@ class MasterpassScraper:
 
             full_text = f"Title: {title}\\n\\n" + "\\n".join(conditions)
 
-            return {
+            return {  # type: ignore # pyre-ignore[7]
                 "title": title, 
                 "image_url": image_url,
                 "full_text": full_text,
                 "conditions": conditions, 
                 "source_url": url,
-            } # type: ignore
+            }
         except Exception as e:
             print(f"   ⚠️ Error extracting {url}: {e}")
-            return None
+            return None  # type: ignore # pyre-ignore[7]
 
     def _clean(self, text: str) -> str:
         if not text:
-            return ""
-        return re.sub(r"\s+", " ", text.replace("\n", " ").replace("\r", "")).strip()
+            return ""  # type: ignore # pyre-ignore[7]
+        return re.sub(r"\s+", " ", text.replace("\n", " ").replace("\r", "")).strip()  # type: ignore # pyre-ignore[7]
 
     def _to_title_case(self, text: str) -> str:
         if not text: return ""
@@ -237,21 +237,21 @@ class MasterpassScraper:
         capitalized = []
         for word in words:
             if not word: continue
-            if word[0] == 'i': capitalized.append('İ' + word[1:]) # type: ignore
-            elif word[0] == 'ı': capitalized.append('I' + word[1:]) # type: ignore
+            if word[0] == 'i': capitalized.append('İ' + word[1:])  # type: ignore # pyre-ignore[16,6]
+            elif word[0] == 'ı': capitalized.append('I' + word[1:])  # type: ignore # pyre-ignore[16,6]
             else: capitalized.append(word.capitalize())
-        return " ".join(capitalized)
+        return " ".join(capitalized)  # type: ignore # pyre-ignore[7]
 
     def _get_or_create_slug(self, title: str) -> str:
         base = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
         slug = base
         counter = 1
-        while self.db.query(Campaign).filter(Campaign.slug == slug).first():
+        while self.db.query(Campaign).filter(Campaign.slug == slug).first():  # type: ignore # pyre-ignore[16]
             slug = f"{base}-{counter}"
-            counter += 1
-        return slug
+            counter += 1  # type: ignore # pyre-ignore[58]
+        return slug  # type: ignore # pyre-ignore[7]
 
-    def _filter_conditions(self, conditions: List[str]) -> List[str]:
+    def _filter_conditions(self, conditions: List[str]) -> List[str]:  # type: ignore # pyre-ignore[16,6]
         blacklist = [
             "değişiklik yapma hakkı", 
             "saklı tutar", 
@@ -266,25 +266,25 @@ class MasterpassScraper:
             if any(b in c_lower for b in blacklist):
                 continue
             clean.append(c)
-        return clean
+        return clean  # type: ignore # pyre-ignore[7]
 
     def _process_campaign(self, url: str, force: bool = False) -> str:
         # --- 1. DB Check FIRST (Early Exit) ---
         if not force:
-            existing = self.db.query(Campaign).filter(
+            existing = self.db.query(Campaign).filter(  # type: ignore # pyre-ignore[16]
                 Campaign.tracking_url == url,
                 Campaign.card_id == self.card_id
             ).first()
             if existing:
                 print(f"      ⏭️  Skipped (Already exists)")
-                return "skipped"
+                return "skipped"  # type: ignore # pyre-ignore[7]
 
         print(f"   🔍 Processing: {url}")
         
         data = self._extract_campaign_data(url)
         if not data:
             print("      ⏭️  Skipped (Parse Error)")
-            return "skipped"
+            return "skipped"  # type: ignore # pyre-ignore[7]
 
         try:
             ai_data = self.parser.parse_campaign_data(
@@ -295,7 +295,7 @@ class MasterpassScraper:
                 force=force
             ) or {}
         except Exception as e:
-            self.db.rollback()
+            self.db.rollback()  # type: ignore # pyre-ignore[16]
             print(f"      ⚠️ AI parse error: {e}")
             ai_data = {}
             
@@ -306,14 +306,14 @@ class MasterpassScraper:
             formatted_title = self._to_title_case(raw_title)
             slug = self._get_or_create_slug(formatted_title)
             
-            ai_cat = ai_data.get("sector", "Diğer") # type: ignore
-            sector = self.db.query(Sector).filter(Sector.slug == ai_cat).first() # type: ignore
+            ai_cat = ai_data.get("sector", "Diğer")
+            sector = self.db.query(Sector).filter(Sector.slug == ai_cat).first()  # type: ignore # pyre-ignore[16]
             if not sector:
-                sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
+                sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()  # type: ignore # pyre-ignore[16]
 
             start_date, end_date = None, None
-            for key in ["start_date", "end_date"]:
-                val = ai_data.get(key) # type: ignore
+            for key in ["start_date", "end_date"]:  # type: ignore # pyre-ignore[16,6]
+                val = ai_data.get(key)
                 if val:
                     try:
                         dt = datetime.strptime(val, "%Y-%m-%d")
@@ -324,10 +324,10 @@ class MasterpassScraper:
                     except Exception:
                         pass
 
-            conds = ai_data.get("conditions", []) # type: ignore
+            conds = ai_data.get("conditions", [])
             if isinstance(conds, str):
                 conds = [c.strip() for c in conds.split("\n") if c.strip()]
-            part = ai_data.get("participation") # type: ignore
+            part = ai_data.get("participation")
             if part:
                 conds.insert(0, f"KATILIM: {part}")
                 
@@ -336,41 +336,41 @@ class MasterpassScraper:
             # Prevent empty text formatting array issues by using newlines instead of string literals
             final_conditions = "\n".join(conds) if conds else "\n".join(data["conditions"])
 
-            cards_raw = ai_data.get("cards", []) # type: ignore
+            cards_raw = ai_data.get("cards", [])
             if isinstance(cards_raw, str):
                 cards_raw = [c.strip() for c in cards_raw.split(",") if c.strip()]
             eligible_cards_str = ", ".join(cards_raw) or "Mastercard"
 
-            existing = self.db.query(Campaign).filter(
+            existing = self.db.query(Campaign).filter(  # type: ignore # pyre-ignore[16]
                 Campaign.tracking_url == url,
                 Campaign.card_id == self.card_id
             ).first()
 
             if existing:
                 print(f"      🔄 Updating existing campaign: {existing.title}")
-                existing.sector_id = sector.id if sector else None # type: ignore
+                existing.sector_id = sector.id if sector else None  # type: ignore # pyre-ignore[16]
                 existing.title = formatted_title
-                existing.description = ai_data.get("description") or formatted_title # type: ignore
-                existing.reward_text = ai_data.get("reward_text") # type: ignore
-                existing.reward_value = ai_data.get("reward_value") # type: ignore
-                existing.reward_type = ai_data.get("reward_type") # type: ignore
+                existing.description = ai_data.get("description") or formatted_title
+                existing.reward_text = ai_data.get("reward_text")
+                existing.reward_value = ai_data.get("reward_value")
+                existing.reward_type = ai_data.get("reward_type")
                 existing.conditions = final_conditions
                 existing.eligible_cards = eligible_cards_str
-                if data["image_url"]:
+                if data["image_url"]:  # type: ignore # pyre-ignore[16,6]
                     existing.image_url = data["image_url"]
                 existing.start_date = start_date or existing.start_date
                 existing.end_date = end_date or existing.end_date
                 existing.updated_at = func.now()
-                self.db.commit()
+                self.db.commit()  # type: ignore # pyre-ignore[16]
                 campaign = existing
             else:
-                campaign = Campaign( # type: ignore
-                    card_id=self.card_id, sector_id=sector.id if sector else None,
+                campaign = Campaign(
+                    card_id=self.card_id, sector_id=sector.id if sector else None,  # type: ignore # pyre-ignore[16]
                     slug=slug, title=formatted_title,
-                    description=ai_data.get("description") or formatted_title, # type: ignore
-                    reward_text=ai_data.get("reward_text"), # type: ignore
-                    reward_value=ai_data.get("reward_value"), # type: ignore
-                    reward_type=ai_data.get("reward_type"), # type: ignore
+                    description=ai_data.get("description") or formatted_title,
+                    reward_text=ai_data.get("reward_text"),
+                    reward_value=ai_data.get("reward_value"),
+                    reward_type=ai_data.get("reward_type"),
                     conditions=final_conditions,
                     eligible_cards=eligible_cards_str,
                     image_url=data.get("image_url"),
@@ -378,53 +378,53 @@ class MasterpassScraper:
                     is_active=True, tracking_url=url,
                     created_at=func.now(), updated_at=func.now(),
                 )
-                self.db.add(campaign)
-                self.db.commit()
+                self.db.add(campaign)  # type: ignore # pyre-ignore[16]
+                self.db.commit()  # type: ignore # pyre-ignore[16]
             print(f"      ✅ Saved")
 
             # Brands
-            for b_name in ai_data.get("brands", []): # type: ignore
+            for b_name in ai_data.get("brands", []):  # type: ignore # pyre-ignore[16,6]
                 if len(b_name) < 2:
                     continue
                 # Hardcoded ignore because AI hallucinated sometimes
-                if b_name.lower() in ["masterpass", "mastercard"]: # type: ignore
+                if b_name.lower() in ["masterpass", "mastercard"]:  # type: ignore # pyre-ignore[16,6]
                     continue
                     
-                b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-') # type: ignore
+                b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
 
                 try:
-                    brand = self.db.query(Brand).filter(
+                    brand = self.db.query(Brand).filter(  # type: ignore # pyre-ignore[16]
                         (Brand.slug == b_slug) | (Brand.name.ilike(b_name))
                     ).first()
                     if not brand:
-                        brand = Brand(name=self._to_title_case(b_name), slug=b_slug) # type: ignore
-                        self.db.add(brand)
-                        self.db.commit()
+                        brand = Brand(name=self._to_title_case(b_name), slug=b_slug)
+                        self.db.add(brand)  # type: ignore # pyre-ignore[16]
+                        self.db.commit()  # type: ignore # pyre-ignore[16]
                 except Exception as e:
-                    self.db.rollback()
+                    self.db.rollback()  # type: ignore # pyre-ignore[16]
                     print(f"      ⚠️ Brand save failed for {b_name}: {e}")
                     continue
 
                 try:
-                    link = self.db.query(CampaignBrand).filter(
-                        CampaignBrand.campaign_id == campaign.id,
-                        CampaignBrand.brand_id == brand.id
+                    link = self.db.query(CampaignBrand).filter(  # type: ignore # pyre-ignore[16]
+                        CampaignBrand.campaign_id == campaign.id,  # type: ignore # pyre-ignore[16]
+                        CampaignBrand.brand_id == brand.id  # type: ignore # pyre-ignore[16]
                     ).first()
                     if not link:
-                        self.db.add(CampaignBrand(campaign_id=campaign.id, brand_id=brand.id))
-                        self.db.commit()
+                        self.db.add(CampaignBrand(campaign_id=campaign.id, brand_id=brand.id))  # type: ignore # pyre-ignore[16]
+                        self.db.commit()  # type: ignore # pyre-ignore[16]
                 except Exception as e:
-                    self.db.rollback()
+                    self.db.rollback()  # type: ignore # pyre-ignore[16]
                     print(f"      ⚠️ CampaignBrand link failed: {e}")
                     continue
 
-            return "saved"
+            return "saved"  # type: ignore # pyre-ignore[7]
         except Exception as e:
-            self.db.rollback()
+            self.db.rollback()  # type: ignore # pyre-ignore[16]
             print(f"      ❌ Save failed: {e}")
-            return "error"
+            return "error"  # type: ignore # pyre-ignore[7]
 
-    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):  # type: ignore # pyre-ignore[16,6]
         """Main entry point."""
         specific_urls = urls
         try:
@@ -432,7 +432,7 @@ class MasterpassScraper:
             self._start_browser()
             
             if self.db:
-                self.db.commit()
+                self.db.commit()  # type: ignore # pyre-ignore[16]
                 # We do NOT close the DB here otherwise we can't save later
                 
             urls = self._fetch_campaign_urls(limit=limit)
@@ -449,16 +449,16 @@ class MasterpassScraper:
                 try:
                     res = self._process_campaign(url, force=force)
                     if res == "saved":
-                        success += 1 # type: ignore
+                        success += 1  # type: ignore # pyre-ignore[58]
                     elif res == "skipped":
-                        skipped += 1 # type: ignore
+                        skipped += 1  # type: ignore # pyre-ignore[58]
                     else:
-                        failed += 1 # type: ignore
+                        failed += 1  # type: ignore # pyre-ignore[58]
                 except Exception as e:
                     print(f"      ❌ Failed to process: {e}")
                     if self.db:
-                        self.db.rollback()
-                    failed += 1 # type: ignore
+                        self.db.rollback()  # type: ignore # pyre-ignore[16]
+                    failed += 1  # type: ignore # pyre-ignore[58]
                 time.sleep(1)
             print(f"\n🏁 Finished. {len(urls)} found, {success} saved, {skipped} skipped, {failed} errors")
             
@@ -467,7 +467,7 @@ class MasterpassScraper:
                 log_scraper_execution(
                     db=self.db,
                     scraper_name="masterpass",
-                    status="SUCCESS" if failed == 0 else ("PARTIAL" if success > 0 else "FAILED"),
+                    status="SUCCESS" if failed == 0 else ("PARTIAL" if success > 0 else "FAILED"),  # type: ignore # pyre-ignore[58]
                     total_found=len(urls),
                     total_saved=success,
                     total_skipped=skipped,
@@ -488,11 +488,11 @@ class MasterpassScraper:
         finally:
             self._stop_browser()
             if self.db:
-                self.db.close()
+                self.db.close()  # type: ignore # pyre-ignore[16]
 
 
 if __name__ == "__main__":
-    import argparse
+    import argparse  # type: ignore # pyre-ignore[21]
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, help="Limit campaigns")
     parser.add_argument("--force", action="store_true", help="Force update")

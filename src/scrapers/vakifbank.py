@@ -1,21 +1,21 @@
-# pyre-ignore-all-errors
-# type: ignore
+
+
 
 
 import sys
-import time
-import re
-import uuid
-import requests
-import json
+import time  # type: ignore # pyre-ignore[21]
+import re  # type: ignore # pyre-ignore[21]
+import uuid  # type: ignore # pyre-ignore[21]
+import requests  # type: ignore # pyre-ignore[21]
+import json  # type: ignore # pyre-ignore[21]
 import os
-import traceback
-from bs4 import BeautifulSoup
-from datetime import datetime
-from urllib.parse import urljoin
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Numeric, Text, ForeignKey
-from sqlalchemy.orm import sessionmaker, relationship, declarative_base
-from sqlalchemy.dialects.postgresql import UUID
+import traceback  # type: ignore # pyre-ignore[21]
+from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
+from datetime import datetime  # type: ignore # pyre-ignore[21]
+from urllib.parse import urljoin  # type: ignore # pyre-ignore[21]
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Numeric, Text, ForeignKey  # type: ignore # pyre-ignore[21]
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base  # type: ignore # pyre-ignore[21]
+from sqlalchemy.dialects.postgresql import UUID  # type: ignore # pyre-ignore[21]
 
 # Import AI Parser from sibling directory
 # We need to add the project root to sys.path
@@ -25,11 +25,11 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 try:
-    from src.services.ai_parser import AIParser
+    from src.services.ai_parser import AIParser  # type: ignore # pyre-ignore[21]
 except ImportError:
     # If running from different context, try adding parent of src
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from src.services.ai_parser import AIParser
+    from src.services.ai_parser import AIParser  # type: ignore # pyre-ignore[21]
 
 # Load Env (for DB and API Key)
 try:
@@ -68,7 +68,7 @@ class Bank(Base):
 class Card(Base):
     __tablename__ = 'cards'
     id = Column(Integer, primary_key=True)
-    bank_id = Column(Integer, ForeignKey('banks.id'))
+    bank_id = Column(Integer, ForeignKey('banks.id'))  # type: ignore # pyre-ignore[16]
     name = Column(String)
     slug = Column(String)
     is_active = Column(Boolean, name="is_active", default=True)
@@ -91,16 +91,16 @@ class Brand(Base):
 
 class CampaignBrand(Base):
     __tablename__ = 'test_campaign_brands' if os.environ.get('TEST_MODE') == '1' else 'campaign_brands'
-    campaign_id = Column(Integer, ForeignKey('campaigns.id'), primary_key=True)
-    brand_id = Column(UUID(as_uuid=True), ForeignKey('brands.id'), primary_key=True)
+    campaign_id = Column(Integer, ForeignKey('campaigns.id'), primary_key=True)  # type: ignore # pyre-ignore[16]
+    brand_id = Column(UUID(as_uuid=True), ForeignKey('brands.id'), primary_key=True)  # type: ignore # pyre-ignore[16]
     brand = relationship("Brand", back_populates="campaigns")
     campaign = relationship("Campaign", back_populates="brands")
 
 class Campaign(Base):
     __tablename__ = 'test_campaigns' if os.environ.get('TEST_MODE') == '1' else 'campaigns'
     id = Column(Integer, primary_key=True)
-    card_id = Column(Integer, ForeignKey('cards.id'))
-    sector_id = Column(Integer, ForeignKey('sectors.id'))
+    card_id = Column(Integer, ForeignKey('cards.id'))  # type: ignore # pyre-ignore[16]
+    sector_id = Column(Integer, ForeignKey('sectors.id'))  # type: ignore # pyre-ignore[16]
     slug = Column(String)
     title = Column(String)
     description = Column(String)
@@ -142,22 +142,22 @@ class VakifbankScraper:
         
         # Ensure Bank
         bank_slug = 'vakifbank'
-        self.bank = self.db.query(Bank).filter(Bank.slug == bank_slug).first()
+        self.bank = self.db.query(Bank).filter(Bank.slug == bank_slug).first()  # type: ignore # pyre-ignore[16]
         if not self.bank:
             self.bank = Bank(name='VakıfBank', slug=bank_slug)
-            self.db.add(self.bank)
-            self.db.commit()
+            self.db.add(self.bank)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
             
         # Ensure Card
         card_slug = 'vakifworld'
         # Fallback Name: Since user renamed it VakıfWorld, default to VakıfWorld for new inserts, but search by slug always.
-        self.card = self.db.query(Card).filter(Card.slug == card_slug).first()
+        self.card = self.db.query(Card).filter(Card.slug == card_slug).first()  # type: ignore # pyre-ignore[16]
         if not self.card:
-             self.card = Card(bank_id=self.bank.id, name='VakıfWorld', slug=card_slug, is_active=True)
-             self.db.add(self.card)
-             self.db.commit()
+             self.card = Card(bank_id=self.bank.id, name='VakıfWorld', slug=card_slug, is_active=True)  # type: ignore # pyre-ignore[16]
+             self.db.add(self.card)  # type: ignore # pyre-ignore[16]
+             self.db.commit()  # type: ignore # pyre-ignore[16]
         
-        self.card_id = self.card.id
+        self.card_id = self.card.id  # type: ignore # pyre-ignore[16]
 
     def _fetch_campaign_list(self, limit_pages=None):
         campaign_urls = []
@@ -183,20 +183,20 @@ class VakifbankScraper:
                             new_found = True
                 print(f"   -> Found {len(items)} items.")
                 if not new_found: break
-                page += 1
+                page += 1  # type: ignore # pyre-ignore[58]
                 time.sleep(1)
             except Exception as e:
                 print(f"   ❌ Error fetching page {page}: {e}")
                 break
-        return campaign_urls
+        return campaign_urls  # type: ignore # pyre-ignore[7]
 
     def _process_campaign(self, url):
         # Database Pre-check (Skip Logic)
         try:
-            existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
+            existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()  # type: ignore # pyre-ignore[16]
             if existing:
                 print(f"   ⏭️ Skipped (Already exists): {url}")
-                return "skipped"
+                return "skipped"  # type: ignore # pyre-ignore[7]
         except Exception as e:
             print(f"   ⚠️ DB Pre-check error: {e}")
 
@@ -214,7 +214,7 @@ class VakifbankScraper:
             
             if not ai_data:
                 print("   ❌ AI Parsing failed (Returned None). Skipping.")
-                return "error"
+                return "error"  # type: ignore # pyre-ignore[7]
 
             title = ai_data.get("title", "Kampanya")
             desc = ai_data.get("description", "")
@@ -237,16 +237,16 @@ class VakifbankScraper:
             ai_cat = ai_data.get("sector", "Diğer")
             db_sector_name = cat_map.get(ai_cat, "Diğer")
             
-            sector = self.db.query(Sector).filter(Sector.slug == db_sector_name).first()
-            if not sector: sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
+            sector = self.db.query(Sector).filter(Sector.slug == db_sector_name).first()  # type: ignore # pyre-ignore[16]
+            if not sector: sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()  # type: ignore # pyre-ignore[16]
             
             # Generate Unique Slug
             base_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
             slug = base_slug
             counter = 1
-            while self.db.query(Campaign).filter(Campaign.slug == slug).first():
+            while self.db.query(Campaign).filter(Campaign.slug == slug).first():  # type: ignore # pyre-ignore[16]
                 slug = f"{base_slug}-{counter}"
-                counter += 1
+                counter += 1  # type: ignore # pyre-ignore[58]
 
             # Prepare Conditions
             conds = ai_data.get("conditions", [])
@@ -280,14 +280,14 @@ class VakifbankScraper:
                 except: pass
 
             # DB Operation
-            existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
+            existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()  # type: ignore # pyre-ignore[16]
             if existing:
-                print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")
-                return "skipped"
+                print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title[:50]}...")  # type: ignore # pyre-ignore[16,6]
+                return "skipped"  # type: ignore # pyre-ignore[7]
 
             campaign = Campaign(
                 card_id=self.card_id,
-                sector_id=sector.id if sector else None,
+                sector_id=sector.id if sector else None,  # type: ignore # pyre-ignore[16]
                 slug=slug,
                 title=title,
                 description=desc,
@@ -303,9 +303,9 @@ class VakifbankScraper:
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
-            self.db.add(campaign)
+            self.db.add(campaign)  # type: ignore # pyre-ignore[16]
             
-            self.db.commit()
+            self.db.commit()  # type: ignore # pyre-ignore[16]
 
             # BRANDS
             brands = ai_data.get("brands", [])
@@ -314,30 +314,30 @@ class VakifbankScraper:
                 for b_name in brands:
                     if b_name == "Genel": continue
                     b_slug = re.sub(r'[^a-z0-9]+', '-', b_name.lower()).strip('-')
-                    brand = self.db.query(Brand).filter(Brand.slug == b_slug).first()
-                    if not brand: brand = self.db.query(Brand).filter(Brand.name.ilike(b_name)).first()
+                    brand = self.db.query(Brand).filter(Brand.slug == b_slug).first()  # type: ignore # pyre-ignore[16]
+                    if not brand: brand = self.db.query(Brand).filter(Brand.name.ilike(b_name)).first()  # type: ignore # pyre-ignore[16]
                     if not brand: 
                         brand = Brand(name=b_name, slug=b_slug)
-                        self.db.add(brand)
-                        self.db.commit()
+                        self.db.add(brand)  # type: ignore # pyre-ignore[16]
+                        self.db.commit()  # type: ignore # pyre-ignore[16]
                     
-                    link = self.db.query(CampaignBrand).filter(
-                        CampaignBrand.campaign_id == campaign.id,
-                        CampaignBrand.brand_id == brand.id
+                    link = self.db.query(CampaignBrand).filter(  # type: ignore # pyre-ignore[16]
+                        CampaignBrand.campaign_id == campaign.id,  # type: ignore # pyre-ignore[16]
+                        CampaignBrand.brand_id == brand.id  # type: ignore # pyre-ignore[16]
                     ).first()
                     if not link:
-                        link = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)
-                        self.db.add(link)
-                        self.db.commit()
+                        link = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)  # type: ignore # pyre-ignore[16]
+                        self.db.add(link)  # type: ignore # pyre-ignore[16]
+                        self.db.commit()  # type: ignore # pyre-ignore[16]
 
             print(f"   ✅ Saved: {title} | Sector: {db_sector_name} | Brands: {brands}")
-            return "saved"
+            return "saved"  # type: ignore # pyre-ignore[7]
             
         except Exception as e:
             print(f"   ❌ Error: {e}")
-            self.db.rollback()
+            self.db.rollback()  # type: ignore # pyre-ignore[16]
             traceback.print_exc()
-            return "error"
+            return "error"  # type: ignore # pyre-ignore[7]
 
     def run(self):
         print("🚀 Starting VakıfBank Scraper (Powered by Kartavantaj AI Parser)...")
@@ -352,14 +352,14 @@ class VakifbankScraper:
             try:
                 res = self._process_campaign(url)
                 if res == "saved":
-                    success_count += 1
+                    success_count += 1  # type: ignore # pyre-ignore[58]
                 elif res == "skipped":
-                    skipped_count += 1
+                    skipped_count += 1  # type: ignore # pyre-ignore[58]
                 else:
-                    failed_count += 1
+                    failed_count += 1  # type: ignore # pyre-ignore[58]
                     error_details.append({"url": url, "error": "Save failed"})
             except Exception as e:
-                failed_count += 1
+                failed_count += 1  # type: ignore # pyre-ignore[58]
                 error_details.append({"url": url, "error": str(e)})
                 
             time.sleep(2) # Rate limiting
@@ -367,11 +367,11 @@ class VakifbankScraper:
         print(f"\n✅ Özet: {len(urls)} bulundu, {success_count} eklendi, {skipped_count} atlandı, {failed_count} hata aldı.")
         
         status = "SUCCESS"
-        if failed_count > 0:
-             status = "PARTIAL" if (success_count > 0 or skipped_count > 0) else "FAILED"
+        if failed_count > 0:  # type: ignore # pyre-ignore[58]
+             status = "PARTIAL" if (success_count > 0 or skipped_count > 0) else "FAILED"  # type: ignore # pyre-ignore[58]
              
         try:
-            from src.utils.logger_utils import log_scraper_execution
+            from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
             log_scraper_execution(
                  db=self.db,
                  scraper_name="vakifbank",

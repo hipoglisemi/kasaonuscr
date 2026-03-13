@@ -1,31 +1,31 @@
-# pyre-ignore-all-errors
-# type: ignore
 
 
-import asyncio
-import random
-import time
+
+
+import asyncio  # type: ignore # pyre-ignore[21]
+import random  # type: ignore # pyre-ignore[21]
+import time  # type: ignore # pyre-ignore[21]
 import os
-import re
-import uuid
+import re  # type: ignore # pyre-ignore[21]
+import uuid  # type: ignore # pyre-ignore[21]
 import sys
-import requests
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-from decimal import Decimal
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup
-from sqlalchemy.orm import Session
+import requests  # type: ignore # pyre-ignore[21]
+from typing import List, Dict, Any, Optional  # type: ignore # pyre-ignore[21]
+from datetime import datetime  # type: ignore # pyre-ignore[21]
+from decimal import Decimal  # type: ignore # pyre-ignore[21]
+from urllib.parse import urljoin  # type: ignore # pyre-ignore[21]
+from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
+from sqlalchemy.orm import Session  # type: ignore # pyre-ignore[21]
 
 # Path setup to ensure imports work correctly
-project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.database import get_db_session
-from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand
-from src.services.ai_parser import AIParser
-from src.utils.logger_utils import log_scraper_execution
+from src.database import get_db_session  # type: ignore # pyre-ignore[21]
+from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand  # type: ignore # pyre-ignore[21]
+from src.services.ai_parser import AIParser  # type: ignore # pyre-ignore[21]
+from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
 
 class VodafoneScraper:
     """
@@ -45,14 +45,14 @@ class VodafoneScraper:
     
     def __init__(self, max_campaigns: int = 100, headless: bool = True):
         self.max_campaigns = max_campaigns
-        self.db: Optional[Session] = None
+        self.db: Optional[Session] = None  # type: ignore # pyre-ignore[16,6]
         self.parser = AIParser()
         
         # Cache
-        self.bank_cache: Optional[Bank] = None
-        self.card_cache: Dict[str, Card] = {}
-        self.sector_cache: Dict[str, Sector] = {}
-        self.brand_cache: Dict[str, Brand] = {}
+        self.bank_cache: Optional[Bank] = None  # type: ignore # pyre-ignore[16,6]
+        self.card_cache: Dict[str, Card] = {}  # type: ignore # pyre-ignore[16,6]
+        self.sector_cache: Dict[str, Sector] = {}  # type: ignore # pyre-ignore[16,6]
+        self.brand_cache: Dict[str, Brand] = {}  # type: ignore # pyre-ignore[16,6]
 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -82,7 +82,7 @@ class VodafoneScraper:
             
             # Limit
             if len(all_links) > self.max_campaigns:
-                all_links = all_links[:self.max_campaigns]
+                all_links = all_links[:self.max_campaigns]  # type: ignore # pyre-ignore[16,6]
             
             # 2. Process Details
             success_count = 0
@@ -90,7 +90,7 @@ class VodafoneScraper:
                 print(f"   [{i}/{len(all_links)}] {url}")
                 try:
                     if self._scrape_detail(url):
-                        success_count += 1
+                        success_count += 1  # type: ignore # pyre-ignore[58]
                     time.sleep(random.uniform(0.5, 1.2))
                 except Exception as e:
                     print(f"      ❌ Error processing {url}: {e}")
@@ -99,13 +99,13 @@ class VodafoneScraper:
 
         except Exception as e:
             print(f"❌ Fatal error in Vodafone scraper: {e}")
-            import traceback
+            import traceback  # type: ignore # pyre-ignore[21]
             traceback.print_exc()
         finally:
             if self.db:
-                self.db.close()
+                self.db.close()  # type: ignore # pyre-ignore[16]
 
-    def _scrape_list(self, url: str) -> List[str]:
+    def _scrape_list(self, url: str) -> List[str]:  # type: ignore # pyre-ignore[16,6]
         """Fetch listing page and extract campaign links"""
         try:
             response = requests.get(url, headers=self.headers, timeout=30)
@@ -125,19 +125,19 @@ class VodafoneScraper:
                     if full_url not in links:
                         links.append(full_url)
             
-            return links
+            return links  # type: ignore # pyre-ignore[7]
         except Exception as e:
             print(f"      ❌ List extraction failed for {url}: {e}")
-            return []
+            return []  # type: ignore # pyre-ignore[7]
 
     def _scrape_detail(self, url: str) -> bool:
         """Fetch detail page and extract content from accordions"""
         
         # 1. Duplicate Check
-        existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
+        existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()  # type: ignore # pyre-ignore[16]
         if existing:
             print(f"      ⚠️ Skipping (Already exists in DB)")
-            return False
+            return False  # type: ignore # pyre-ignore[7]
 
         try:
             response = requests.get(url, headers=self.headers, timeout=30)
@@ -185,8 +185,8 @@ class VodafoneScraper:
                             content_parts.append(f"### {header_text}\n{text}")
                             # Participation context
                             lower_header = header_text.lower()
-                            if any(x in lower_header for x in ["katılım", "nasıl", "faydalan", "detay"]):
-                                participation_text += f"\n[{header_text}]: {text}"
+                            if any(x in lower_header for x in ["katılım", "nasıl", "faydalan", "detay"]):  # type: ignore # pyre-ignore[16,6]
+                                participation_text += f"\n[{header_text}]: {text}"  # type: ignore # pyre-ignore[58,16,6]
 
             if not content_parts and not description:
                 raw_text = soup.get_text(separator="\n", strip=True)
@@ -208,7 +208,7 @@ class VodafoneScraper:
 
             if not ai_data:
                 print(f"      ❌ AI parsing failed for {url}")
-                return False
+                return False  # type: ignore # pyre-ignore[7]
 
             # Override/Fixes
             if image_url and (not ai_data.get('image_url') or 'logo' in ai_data.get('image_url', '').lower()):
@@ -216,13 +216,13 @@ class VodafoneScraper:
             
             # Save to DB
             self._save_campaign(ai_data, url, image_url)
-            return True
+            return True  # type: ignore # pyre-ignore[7]
 
         except Exception as e:
             print(f"      ❌ Detail error: {e}")
-            return False
+            return False  # type: ignore # pyre-ignore[7]
 
-    def _save_campaign(self, data: Dict[str, Any], url: str, image_url: Optional[str]):
+    def _save_campaign(self, data: Dict[str, Any], url: str, image_url: Optional[str]):  # type: ignore # pyre-ignore[16,6]
         """Save parsed campaign to DB"""
         
         # Bank & Card
@@ -233,7 +233,7 @@ class VodafoneScraper:
         sector = self._get_sector(data.get("sector"))
         
         # Brands
-        brand_ids = self._get_or_create_brands(data.get("brands", []), sector.id if sector else None)
+        brand_ids = self._get_or_create_brands(data.get("brands", []), sector.id if sector else None)  # type: ignore # pyre-ignore[16]
         
         # Slug
         slug = data.get("slug")
@@ -243,7 +243,7 @@ class VodafoneScraper:
             clean_title = clean_title.translate(tr_map)
             slug = re.sub(r'[^a-z0-9-]', '-', clean_title)
             slug = re.sub(r'-+', '-', slug).strip('-')
-            url_hash = uuid.uuid5(uuid.NAMESPACE_URL, url).hex[:8]
+            url_hash = uuid.uuid5(uuid.NAMESPACE_URL, url).hex[:8]  # type: ignore # pyre-ignore[16,6]
             slug = f"{slug}-{url_hash}"
         
         # Format for CampaignDetailClient.tsx
@@ -251,14 +251,14 @@ class VodafoneScraper:
         ai_description = data.get("marketing_text") or data.get("description", "")
         
         if participation.strip():
-            clean_part = re.sub(r'\[[^\]]+\]:\s*', '', participation.strip()).strip()
+            clean_part = re.sub(r'\[[^\]]+\]:\s*', '', participation.strip()).strip()  # type: ignore # pyre-ignore[16,6]
             ai_marketing_text = f"📱 Katılım: {clean_part}\n\n{ai_description}" if ai_description else f"📱 Katılım: {clean_part}"
         else:
             ai_marketing_text = ai_description
             
         campaign = Campaign(
-            card_id=card.id,
-            sector_id=sector.id if sector else None,
+            card_id=card.id,  # type: ignore # pyre-ignore[16]
+            sector_id=sector.id if sector else None,  # type: ignore # pyre-ignore[16]
             title=data.get("title"),
             slug=slug,
             description=data.get("description"),
@@ -280,51 +280,51 @@ class VodafoneScraper:
         )
         
         try:
-            self.db.add(campaign)
-            self.db.flush()
+            self.db.add(campaign)  # type: ignore # pyre-ignore[16]
+            self.db.flush()  # type: ignore # pyre-ignore[16]
             
             for bid in brand_ids:
-                existing_link = self.db.query(CampaignBrand).filter_by(campaign_id=campaign.id, brand_id=bid).first()
+                existing_link = self.db.query(CampaignBrand).filter_by(campaign_id=campaign.id, brand_id=bid).first()  # type: ignore # pyre-ignore[16]
                 if not existing_link:
-                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=bid)
-                    self.db.add(cb)
+                    cb = CampaignBrand(campaign_id=campaign.id, brand_id=bid)  # type: ignore # pyre-ignore[16]
+                    self.db.add(cb)  # type: ignore # pyre-ignore[16]
             
-            self.db.commit()
+            self.db.commit()  # type: ignore # pyre-ignore[16]
             print(f"      ✅ Saved: {campaign.title}")
         except Exception as e:
-            self.db.rollback()
+            self.db.rollback()  # type: ignore # pyre-ignore[16]
             print(f"      ❌ DB Save Error for {url}: {e}")
 
     # --- HELPERS ---
     def _load_cache(self):
-        bank = self.db.query(Bank).filter(Bank.slug == "vodafone").first()
+        bank = self.db.query(Bank).filter(Bank.slug == "vodafone").first()  # type: ignore # pyre-ignore[16]
         if not bank:
             bank = Bank(name="Vodafone", slug="vodafone", is_active=True, logo_url="https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Vodafone_2017_logo.svg/1200px-Vodafone_2017_logo.svg.png")
-            self.db.add(bank)
-            self.db.commit()
+            self.db.add(bank)  # type: ignore # pyre-ignore[16]
+            self.db.commit()  # type: ignore # pyre-ignore[16]
         self.bank_cache = bank
-        for c in self.db.query(Card).filter(Card.bank_id == bank.id).all():
+        for c in self.db.query(Card).filter(Card.bank_id == bank.id).all():  # type: ignore # pyre-ignore[16]
             self.card_cache[c.name.lower()] = c
-        for s in self.db.query(Sector).all():
+        for s in self.db.query(Sector).all():  # type: ignore # pyre-ignore[16]
             self.sector_cache[s.slug] = s
             self.sector_cache[s.name.lower()] = s
-        for b in self.db.query(Brand).filter(Brand.is_active == True).limit(500).all():
+        for b in self.db.query(Brand).filter(Brand.is_active == True).limit(500).all():  # type: ignore # pyre-ignore[16]
             self.brand_cache[b.name.lower()] = b
 
     def _get_or_create_card(self, name: str) -> Card:
         key = name.lower()
-        if key in self.card_cache: return self.card_cache[key]
-        card = Card(bank_id=self.bank_cache.id, name=name, slug=name.lower().replace(" ", "-"), is_active=True)
-        self.db.add(card)
-        self.db.flush()
+        if key in self.card_cache: return self.card_cache[key]  # type: ignore # pyre-ignore[16,6]
+        card = Card(bank_id=self.bank_cache.id, name=name, slug=name.lower().replace(" ", "-"), is_active=True)  # type: ignore # pyre-ignore[16]
+        self.db.add(card)  # type: ignore # pyre-ignore[16]
+        self.db.flush()  # type: ignore # pyre-ignore[16]
         self.card_cache[key] = card
-        return card
+        return card  # type: ignore # pyre-ignore[7]
 
-    def _get_sector(self, slug: str) -> Optional[Sector]:
+    def _get_sector(self, slug: str) -> Optional[Sector]:  # type: ignore # pyre-ignore[16,6]
         if not slug: return None
-        return self.sector_cache.get(slug.lower()) or self.sector_cache.get("diğer")
+        return self.sector_cache.get(slug.lower()) or self.sector_cache.get("diğer")  # type: ignore # pyre-ignore[7]
 
-    def _get_or_create_brands(self, names: List[str], sector_id: Optional[int]) -> List[uuid.UUID]:
+    def _get_or_create_brands(self, names: List[str], sector_id: Optional[int]) -> List[uuid.UUID]:  # type: ignore # pyre-ignore[16,6]
         ids = []
         for n in names:
             if not n: continue
@@ -332,14 +332,14 @@ class VodafoneScraper:
             if key in self.brand_cache:
                 ids.append(self.brand_cache[key].id)
             else:
-                brand = self.db.query(Brand).filter(Brand.name.ilike(n)).first()
+                brand = self.db.query(Brand).filter(Brand.name.ilike(n)).first()  # type: ignore # pyre-ignore[16]
                 if not brand:
-                    brand = Brand(name=n, slug=key.replace(" ", "-")[:50], is_active=True)
-                    self.db.add(brand)
-                    self.db.flush()
+                    brand = Brand(name=n, slug=key.replace(" ", "-")[:50], is_active=True)  # type: ignore # pyre-ignore[16,6]
+                    self.db.add(brand)  # type: ignore # pyre-ignore[16]
+                    self.db.flush()  # type: ignore # pyre-ignore[16]
                 self.brand_cache[key] = brand
                 ids.append(brand.id)
-        return list(set(ids))
+        return list(set(ids))  # type: ignore # pyre-ignore[7]
 
 if __name__ == "__main__":
     max_c = 5 if os.environ.get('TEST_MODE') == '1' else 999

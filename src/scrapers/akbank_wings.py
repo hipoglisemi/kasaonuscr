@@ -1,11 +1,11 @@
-# pyre-ignore-all-errors
-# type: ignore
 
 
-import requests # type: ignore
-import time
-from typing import List, Optional
-from urllib.parse import urljoin
+
+
+import requests  # type: ignore # pyre-ignore[21]
+import time  # type: ignore # pyre-ignore[21]
+from typing import List, Optional  # type: ignore # pyre-ignore[21]
+from urllib.parse import urljoin  # type: ignore # pyre-ignore[21]
 import sys
 import os
 # Path setup
@@ -13,7 +13,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.scrapers.akbank_base import AkbankBaseScraper # type: ignore
+from src.scrapers.akbank_base import AkbankBaseScraper  # type: ignore # pyre-ignore[21]
 
 class AkbankWingsScraper(AkbankBaseScraper):
     """
@@ -33,7 +33,7 @@ class AkbankWingsScraper(AkbankBaseScraper):
             referer_url="https://www.wingscard.com.tr/kampanyalar"
         )
 
-    def _fetch_campaign_list(self) -> List[str]:
+    def _fetch_campaign_list(self) -> List[str]:  # type: ignore # pyre-ignore[16,6]
         """Fetch all campaign URLs from the Wings JSON API."""
         print(f"📥 Fetching Wings campaign list from API...")
         campaign_urls = []
@@ -76,12 +76,12 @@ class AkbankWingsScraper(AkbankBaseScraper):
             print(f"❌ Error fetching Wings campaign API: {e}")
             
         print(f"✅ Found {len(campaign_urls)} campaigns for {self.card_name}")
-        return campaign_urls
+        return campaign_urls  # type: ignore # pyre-ignore[7]
 
     def _process_campaign(self, url: str, force: bool = False) -> str:
         """Override to use Wings-specific selectors."""
-        from bs4 import BeautifulSoup # type: ignore
-        from src.services.ai_parser import parse_api_campaign # type: ignore
+        from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
+        from src.services.ai_parser import parse_api_campaign  # type: ignore # pyre-ignore[21]
         
         try:
             print(f"🔍 Processing: {url}")
@@ -108,7 +108,7 @@ class AkbankWingsScraper(AkbankBaseScraper):
             if not image_url:
                 banner = soup.select_one('.privileges-detail-banner')
                 if banner and 'style' in banner.attrs:
-                    import re
+                    import re  # type: ignore # pyre-ignore[21]
                     match = re.search(r'url\(["\']?(.*?)["\']?\)', banner['style'])
                     if match:
                         image_url = urljoin(self.WINGS_BASE_URL, match.group(1))
@@ -133,11 +133,11 @@ class AkbankWingsScraper(AkbankBaseScraper):
             
             # Save to DB
             self._save_campaign(title, details_text, image_url, ai_data, url)
-            return "saved"
+            return "saved"  # type: ignore # pyre-ignore[7]
             
         except Exception as e:
             print(f"❌ Failed to process {url}: {e}")
-            return "error"
+            return "error"  # type: ignore # pyre-ignore[7]
 
 if __name__ == "__main__":
     scraper = AkbankWingsScraper()
