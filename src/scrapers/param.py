@@ -323,16 +323,15 @@ class ParamScraper:
         return clean
 
     def _process_campaign(self, url: str, force: bool = False) -> str:
-        existing = self.db.query(Campaign).filter(
-            Campaign.tracking_url == url, Campaign.card_id == self.card_id
-        ).first()
-        
-        if existing and not force:
-            print("   ⏭️  Skipped (Already exists)")
-            return "skipped"
-        
-        if existing and force:
-            print(f"   🔄 Updating existing campaign: {existing.title}")
+        # --- 1. DB Check FIRST (Early Exit) ---
+        if not force:
+            existing = self.db.query(Campaign).filter(
+                Campaign.tracking_url == url, Campaign.card_id == self.card_id
+            ).first()
+            
+            if existing:
+                print("   ⏭️  Skipped (Already exists)")
+                return "skipped"
 
         print(f"🔍 Processing: {url}")
         data = self._extract_campaign_data(url)
@@ -342,7 +341,11 @@ class ParamScraper:
 
         try:
             ai_data = self.parser.parse_campaign_data(
-                raw_text=data["full_text"], bank_name=self.BANK_NAME, title=data["title"]
+                raw_text=data["full_text"], 
+                bank_name=self.BANK_NAME, 
+                title=data["title"],
+                tracking_url=url,
+                force=force
             ) or {}
         except Exception as e:
             self.db.rollback()
@@ -389,7 +392,12 @@ class ParamScraper:
                 cards_raw = [c.strip() for c in cards_raw.split(",") if c.strip()]
             eligible_cards_str = ", ".join(cards_raw) or "ParamKart"
 
+            existing = self.db.query(Campaign).filter(
+                Campaign.tracking_url == url, Campaign.card_id == self.card_id
+            ).first()
+
             if existing:
+                print(f"   🔄 Updating existing campaign: {existing.title}")
                 existing.sector_id = sector.id if sector else None # type: ignore
                 existing.title = formatted_title
                 existing.description = ai_data.get("description") or formatted_title # type: ignore
@@ -464,20 +472,28 @@ class ParamScraper:
             traceback.print_exc()
             return "error"
 
-    def run(self, limit: Optional[int] = None, force: bool = False):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
+        """Main entry point."""
         try:
             print("🚀 Starting Param Scraper (Playwright)...")
             self._start_browser()
             
             if self.db:
                 self.db.commit()
-                # We do NOT close the DB here otherwise we can't save later
                 
-            urls = self._fetch_campaign_urls(limit=limit)
+            found_urls = self._fetch_campaign_urls(limit=limit)
+            
+            # Filter if specific URLs provided
+            if urls:
+                final_urls = [u for u in found_urls if u in urls]
+            else:
+                final_urls = found_urls
+
+            print(f"   🎯 Processing {len(final_urls)} campaigns...")
             
             success, skipped, failed = 0, 0, 0
-            for i, url in enumerate(urls, 1):
-                print(f"\\n[{i}/{len(urls)}]")
+            for i, url in enumerate(final_urls, 1):
+                print(f"\n[{i}/{len(final_urls)}]")
                 try:
                     res = self._process_campaign(url, force=force)
                     if res == "saved":
@@ -490,17 +506,17 @@ class ParamScraper:
                     print(f"❌ Error: {e}")
                     if self.db:
                         self.db.rollback()
-                    failed += 1
+                    failed += 1 # type: ignore
                 time.sleep(1)
-            print(f"\\n🏁 Finished. {len(urls)} found, {success} saved, {skipped} skipped, {failed} errors")
+            print(f"\n🏁 Finished. {len(final_urls)} found, {success} saved, {skipped} skipped, {failed} errors")
             
-            # Log successful or partial execution
+            # Log execution
             if self.db:
                 log_scraper_execution(
                     db=self.db,
                     scraper_name="param",
                     status="SUCCESS" if failed == 0 else ("PARTIAL" if success > 0 else "FAILED"),
-                    total_found=len(urls),
+                    total_found=len(final_urls),
                     total_saved=success,
                     total_skipped=skipped,
                     total_failed=failed
@@ -524,9 +540,10 @@ class ParamScraper:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--limit", type=int, default=1000, help="Limit the number of campaigns to scrape")
-    parser.add_argument("--force", action="store_true", help="Force update existing campaigns")
+    parser.add_argument("--limit", type=int, help="Limit campaigns")
+    parser.add_argument("--force", action="store_true", help="Force update")
+    parser.add_argument("--urls", nargs='*', help="Specific URLs to scrape")
     args = parser.parse_args()
     
     scraper = ParamScraper()
-    scraper.run(limit=args.limit, force=args.force)
+    scraper.run(limit=args.limit, urls=args.urls, force=args.force)

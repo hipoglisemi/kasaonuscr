@@ -48,7 +48,7 @@ class ParafScraper:
         self.sector_cache: Dict[str, Sector] = {}
         self.brand_cache: Dict[str, Brand] = {}
 
-    def run(self):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
         """Entry point for synchronous execution"""
         print(f"🚀 Starting Halkbank (Paraf/Parafly) API Scraper...")
         
@@ -58,7 +58,7 @@ class ParafScraper:
             
             for source in self.SOURCES:
                 print(f"\n🌍 Processing Source: {source['name']}")
-                self._process_source(source)
+                self._process_source(source, limit=limit, urls=urls, force=force)
                 
             print(f"\n✅ Scraping complete!")
             
@@ -70,16 +70,23 @@ class ParafScraper:
             if self.db:
                 self.db.close()
 
-    def _process_source(self, source: Dict):
+    def _process_source(self, source: Dict, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
         """Process a single API source (Paraf or Parafly)"""
         try:
             # 1. Fetch campaigns from API
             campaigns = self._fetch_campaigns(source)
             print(f"   Found {len(campaigns)} campaigns for {source['name']}")
             
-            # Limit for testing
-            if len(campaigns) > self.max_campaigns:
-                campaigns = campaigns[:self.max_campaigns]
+            # Filter if specific URLs provided
+            if urls:
+                filtered = []
+                for c in campaigns:
+                    c_url = urljoin(source['base'], c.get('url', ''))
+                    if c_url in urls:
+                        filtered.append(c)
+                campaigns = filtered
+            elif limit:
+                campaigns = campaigns[:limit]
             
             # 2. Process each campaign
             success_count = 0
@@ -90,7 +97,7 @@ class ParafScraper:
                 print(f"   [{i}/{len(campaigns)}] {url}")
                 
                 try:
-                    res = self._scrape_detail(campaign_data, url, source)
+                    res = self._scrape_detail(campaign_data, url, source, force=force)
                     if res == "saved":
                         success_count += 1
                     elif res == "skipped":
@@ -147,14 +154,15 @@ class ParafScraper:
             print(f"      ❌ API Fetch Error: {e}")
             return []
 
-    def _scrape_detail(self, campaign_data: Dict, url: str, source: Dict) -> bool:
+    def _scrape_detail(self, campaign_data: Dict, url: str, source: Dict, force: bool = False) -> str:
         """Scrape single campaign detail page"""
         
         # Check if exists
-        existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
-        if existing:
-            print(f"      ⏭️ Skipped (Already exists, preserving manual edits)")
-            return "skipped"
+        if not force:
+            existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
+            if existing:
+                print(f"      ⏭️ Skipped (Already exists)")
+                return "skipped"
 
         try:
             # Fetch detail page for full conditions text
@@ -189,7 +197,9 @@ class ParafScraper:
                 raw_text=raw_text,
                 title=title,
                 bank_name="halkbank",
-                card_name=source['default_card']
+                card_name=source['default_card'],
+                tracking_url=url,
+                force=force
             )
             
             if not ai_data:
@@ -395,11 +405,16 @@ class ParafScraper:
                         self.brand_cache[key] = existing
                         ids.append(existing.id)
         return ids
-
 if __name__ == "__main__":
     try:
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--limit", type=int, help="Limit campaigns")
+        parser.add_argument("--force", action="store_true", help="Force refresh")
+        args = parser.parse_args()
+        
         scraper = ParafScraper()
-        scraper.run()
+        scraper.run(limit=args.limit, force=args.force)
     except Exception as e:
         import traceback
         traceback.print_exc()

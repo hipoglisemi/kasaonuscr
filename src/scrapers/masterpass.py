@@ -266,33 +266,37 @@ class MasterpassScraper:
         return clean
 
     def _process_campaign(self, url: str, force: bool = False) -> str:
-        existing = self.db.query(Campaign).filter(
-            Campaign.tracking_url == url, Campaign.card_id == self.card_id
-        ).first()
-        
-        if existing and not force:
-            print("   ⏭️  Skipped (Already exists)")
-            return "skipped"
-        
-        if existing and force:
-            print(f"   🔄 Updating existing campaign: {existing.title}")
+        # --- 1. DB Check FIRST (Early Exit) ---
+        if not force:
+            existing = self.db.query(Campaign).filter(
+                Campaign.tracking_url == url,
+                Campaign.card_id == self.card_id
+            ).first()
+            if existing:
+                print(f"      ⏭️  Skipped (Already exists)")
+                return "skipped"
 
-        print(f"🔍 Processing: {url}")
+        print(f"   🔍 Processing: {url}")
+        
         data = self._extract_campaign_data(url)
         if not data:
-            print("   ⏭️  Skipped (Parse Error)")
+            print("      ⏭️  Skipped (Parse Error)")
             return "skipped"
 
         try:
             ai_data = self.parser.parse_campaign_data(
-                raw_text=data["full_text"], bank_name=self.BANK_NAME, title=data["title"]
+                raw_text=data["full_text"], 
+                bank_name="Masterpass", 
+                title=data["title"],
+                tracking_url=url,
+                force=force
             ) or {}
         except Exception as e:
             self.db.rollback()
-            print(f"   ⚠️ AI parse error: {e}")
+            print(f"      ⚠️ AI parse error: {e}")
             ai_data = {}
             
-        print(f"   🧠 AI Data: {json.dumps(ai_data, ensure_ascii=False)}")
+        print(f"      🧠 AI Data: {json.dumps(ai_data, ensure_ascii=False)}")
 
         try:
             raw_title = ai_data.get("title") or data.get("title") or ""
@@ -334,7 +338,13 @@ class MasterpassScraper:
                 cards_raw = [c.strip() for c in cards_raw.split(",") if c.strip()]
             eligible_cards_str = ", ".join(cards_raw) or "Mastercard"
 
+            existing = self.db.query(Campaign).filter(
+                Campaign.tracking_url == url,
+                Campaign.card_id == self.card_id
+            ).first()
+
             if existing:
+                print(f"      🔄 Updating existing campaign: {existing.title}")
                 existing.sector_id = sector.id if sector else None # type: ignore
                 existing.title = formatted_title
                 existing.description = ai_data.get("description") or formatted_title # type: ignore
@@ -349,7 +359,6 @@ class MasterpassScraper:
                 existing.end_date = end_date or existing.end_date
                 existing.updated_at = func.now()
                 self.db.commit()
-                print(f"   ✅ Updated: {existing.title[:50]}")
                 campaign = existing
             else:
                 campaign = Campaign( # type: ignore
@@ -368,7 +377,7 @@ class MasterpassScraper:
                 )
                 self.db.add(campaign)
                 self.db.commit()
-                print(f"   ✅ Saved: {campaign.title[:50]}")
+            print(f"      ✅ Saved")
 
             # Brands
             for b_name in ai_data.get("brands", []): # type: ignore
@@ -390,7 +399,7 @@ class MasterpassScraper:
                         self.db.commit()
                 except Exception as e:
                     self.db.rollback()
-                    print(f"   ⚠️ Brand save failed for {b_name}: {e}")
+                    print(f"      ⚠️ Brand save failed for {b_name}: {e}")
                     continue
 
                 try:
@@ -403,17 +412,18 @@ class MasterpassScraper:
                         self.db.commit()
                 except Exception as e:
                     self.db.rollback()
-                    print(f"   ⚠️ CampaignBrand link failed: {e}")
+                    print(f"      ⚠️ CampaignBrand link failed: {e}")
                     continue
 
             return "saved"
         except Exception as e:
             self.db.rollback()
-            print(f"   ❌ Save failed: {e}")
-            traceback.print_exc()
+            print(f"      ❌ Save failed: {e}")
             return "error"
 
-    def run(self, limit: Optional[int] = None, force: bool = False):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
+        """Main entry point."""
+        specific_urls = urls
         try:
             print("🚀 Starting Masterpass Scraper (Playwright)...")
             self._start_browser()
@@ -424,9 +434,15 @@ class MasterpassScraper:
                 
             urls = self._fetch_campaign_urls(limit=limit)
             
+            # Filter if specific URLs provided
+            if specific_urls:
+                 urls = [u for u in urls if u in specific_urls]
+
+            print(f"   🎯 Processing {len(urls)} campaigns...")
+            
             success, skipped, failed = 0, 0, 0
             for i, url in enumerate(urls, 1):
-                print(f"\n[{i}/{len(urls)}]")
+                print(f"\n[{i}/{len(urls)}] {url}")
                 try:
                     res = self._process_campaign(url, force=force)
                     if res == "saved":
@@ -436,10 +452,10 @@ class MasterpassScraper:
                     else:
                         failed += 1 # type: ignore
                 except Exception as e:
-                    print(f"❌ Error: {e}")
+                    print(f"      ❌ Failed to process: {e}")
                     if self.db:
                         self.db.rollback()
-                    failed += 1
+                    failed += 1 # type: ignore
                 time.sleep(1)
             print(f"\n🏁 Finished. {len(urls)} found, {success} saved, {skipped} skipped, {failed} errors")
             
@@ -475,10 +491,10 @@ class MasterpassScraper:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--limit", type=int, default=1000, help="Limit the number of campaigns to scrape")
-    parser.add_argument("--force", action="store_true", help="Force update existing campaigns")
+    parser.add_argument("--limit", type=int, help="Limit campaigns")
+    parser.add_argument("--force", action="store_true", help="Force update")
+    parser.add_argument("--urls", nargs='*', help="Specific URLs to scrape")
     args = parser.parse_args()
     
     scraper = MasterpassScraper()
-    scraper.run(limit=args.limit, force=args.force)
-
+    scraper.run(limit=args.limit, urls=args.urls, force=args.force)

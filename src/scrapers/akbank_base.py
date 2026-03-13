@@ -101,10 +101,21 @@ class AkbankBaseScraper:
         print(f"✅ Found {len(campaign_urls)} campaigns for {self.card_name}")
         return campaign_urls
 
-    def _process_campaign(self, url: str) -> str:
+    def _process_campaign(self, url: str, force: bool = False) -> str:
         """Process a single campaign URL"""
         print(f"🔍 Processing: {url}")
         try:
+            # --- 1. DB Check FIRST (Immediate skip) ---
+            if not force:
+                with get_db_session() as db:
+                    existing = db.query(Campaign).filter(
+                        Campaign.tracking_url == url,
+                        Campaign.card_id == self.card_id
+                    ).first()
+                    if existing:
+                        print(f"   ⏭️  Skipped (URL already exists in DB): {url}")
+                        return "skipped"
+
             response = self.session.get(url, timeout=20)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -130,13 +141,15 @@ class AkbankBaseScraper:
             else:
                 details_text = title
                 
-            # --- 2. AI Parsing ---
+            # --- 2. AI Parsing (Using Global Cache) ---
             ai_data = parse_api_campaign(
                 title=title,
-                short_description=title, # Axess doesn't have a separate short desc
+                short_description=title, 
                 content_html=details_text,
                 bank_name="Akbank",
-                scraper_sector=None
+                scraper_sector=None,
+                tracking_url=url,
+                force=force
             )
             
             # --- 3. Save to DB ---
@@ -161,7 +174,9 @@ class AkbankBaseScraper:
             ).first()
             
             if existing_url:
-                print(f"   ⏭️  Skipped (URL already exists): {source_url}")
+                # This should usually be handled by _process_campaign's early check, 
+                # but we keep it here as a safety measure.
+                print(f"   ⏭️  Skipped (Safety Check: URL exists): {source_url}")
                 return "skipped"
 
             # Ensure slug is unique using the utility
@@ -270,22 +285,27 @@ class AkbankBaseScraper:
             print(f"   ✅ Saved: {campaign.title}")
             return "saved"
 
-    def run(self):
+    def run(self, limit: Optional[int] = None, urls: Optional[List[str]] = None, force: bool = False):
         print(f"🚀 Starting {self.card_name} Scraper...")
         from src.utils.logger_utils import log_scraper_execution
         
-        urls = self._fetch_campaign_list()
+        if urls:
+            process_urls = urls
+        else:
+            process_urls = self._fetch_campaign_list()
+            if limit:
+                process_urls = process_urls[:limit]
         
-        total_found = len(urls)
+        total_found = len(process_urls)
         total_saved = 0
         total_skipped = 0
         total_failed = 0
         error_details = []
-        
-        for i, url in enumerate(urls):
-            print(f"[{i+1}/{len(urls)}]", end=" ")
+
+        for i, url in enumerate(process_urls):
+            print(f"[{i+1}/{len(process_urls)}]", end=" ")
             try:
-                res = self._process_campaign(url)
+                res = self._process_campaign(url, force=force)
                 if res == "saved":
                     total_saved += 1
                 elif res == "skipped":
