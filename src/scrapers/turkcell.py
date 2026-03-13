@@ -79,7 +79,7 @@ class TurkcellScraper:
                 
                 # Limit
                 if links and self.max_campaigns:
-                    links = list(links)[:int(self.max_campaigns)]  # type: ignore
+                    links = list(links)[:int(self.max_campaigns)]
                 
                 # 2. Process Details
                 success_count = 0
@@ -87,7 +87,7 @@ class TurkcellScraper:
                     print(f"   [{i}/{len(links)}] {url}")
                     try:
                         if await self._scrape_detail(context, url):
-                            success_count = int(success_count or 0) + 1  # type: ignore
+                            success_count += 1
                         await asyncio.sleep(random.uniform(1, 2))
                     except Exception as e:
                         print(f"      ❌ Error processing {url}: {e}")
@@ -153,16 +153,13 @@ class TurkcellScraper:
         
         # 1. Duplicate Check
         if self.db is None:
-            print(f"      ❌ DB session not initialized")
+            print(f"      ❌ DB session is None, cannot check for duplicates")
             return False
             
-        if self.db is not None:
-            existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
-            if existing:
-                print(f"      ⚠️ Skipping (Already exists in DB)")
-                return False
-        else:
-            print(f"      ⚠️ DB session is None, cannot check for duplicates")
+        existing = self.db.query(Campaign).filter(Campaign.tracking_url == url).first()
+        if existing:
+            print(f"      ⚠️ Skipping (Already exists in DB)")
+            return False
 
         page = await context.new_page()
         try:
@@ -284,7 +281,8 @@ class TurkcellScraper:
             print(f"      ❌ Detail error: {e}")
             return False
         finally:
-            await page.close()
+            if page:
+                await page.close()
 
     def _save_campaign(self, data: Dict[str, Any], url: str, image_url: Optional[str]):
         """Save parsed campaign to DB"""
@@ -403,6 +401,7 @@ class TurkcellScraper:
             
         # Sectors
         for s in self.db.query(Sector).all():
+            self.sector_cache[s.slug] = s
             self.sector_cache[s.name.lower()] = s
             
         # Brands
@@ -435,9 +434,9 @@ class TurkcellScraper:
         self.card_cache[key] = card
         return card
 
-    def _get_sector(self, name: Any) -> Optional[Sector]:
-        if not name or not isinstance(name, str): return None
-        return self.sector_cache.get(name.lower()) or self.sector_cache.get("diğer")
+    def _get_sector(self, slug: Any) -> Optional[Sector]:
+        if not slug or not isinstance(slug, str): return None
+        return self.sector_cache.get(slug.lower()) or self.sector_cache.get("diğer")
 
     def _get_or_create_brands(self, names: List[str], sector_id: Optional[int]) -> List[uuid.UUID]:
         ids = []

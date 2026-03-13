@@ -18,12 +18,10 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 # Fix sys.path to ensure src is discoverable
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# Check if we are in src/scrapers or root
-if "src" in current_dir:
-    project_root = os.path.dirname(os.path.dirname(current_dir))
-else:
-    project_root = current_dir
+# Fix sys.path
+project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -214,7 +212,7 @@ class IsbankMaximilesScraper:
                          if any(m in parent_text for m in EXPIRED_MARKERS):
                              expired_count = int(expired_count or 0) + 1  # type: ignore
                     
-                    if expired_count >= 3:  # type: ignore
+                    if expired_count >= 3:
                          print(f"   🛑 Reached expired campaigns section ({expired_count}/10 expired). Stopping scroll.")
                          break
             except Exception as e:
@@ -710,11 +708,11 @@ class IsbankMaximilesScraper:
                 try:
                     res = self._process_campaign(url, force=force)
                     if res == "saved":
-                        success = int(success or 0) + 1  # type: ignore
+                        success += 1
                     elif res == "skipped":
-                        skipped = int(skipped or 0) + 1  # type: ignore
+                        skipped += 1
                     else:
-                        failed = int(failed or 0) + 1  # type: ignore
+                        failed += 1
                         error_details.append({"url": url, "error": "Unknown DB failure"})
                 except Exception as e:
                     print(f"❌ Error: {e}")

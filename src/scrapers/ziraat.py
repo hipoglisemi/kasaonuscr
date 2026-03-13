@@ -1,115 +1,25 @@
-# pyre-ignore-all-errors
-# type: ignore
-
-
 import sys
+import os
+# Path setup
+project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import time
 import re
-import uuid
 import requests
 import json
-import os
 import traceback
+from typing import List, Dict, Any, Optional
 from bs4 import BeautifulSoup
 from datetime import datetime
 from urllib.parse import urljoin
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Numeric, Text, ForeignKey
-from sqlalchemy.orm import sessionmaker, relationship, declarative_base
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Session
 
-# --- CONFIGURATION ---
-# (Will load AFTER environment variables)
-
-# Import AI Parser from sibling directory
-current_dir = os.path.dirname(os.path.abspath(__file__)) # src/scrapers
-project_root = os.path.dirname(os.path.dirname(current_dir)) # /Users/.../kartavantaj-scraper
-if project_root not in sys.path:
-    sys.path.append(project_root)
-
-try:
-    from src.services.ai_parser import AIParser
-except ImportError:
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from src.services.ai_parser import AIParser
-
-# Load Env
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    with open('.env', 'r') as f:
-        for line in f:
-            if line.strip() and not line.startswith('#'):
-                k, v = line.strip().split('=', 1)
-except: pass
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
-# --- MODELS ---
-Base = declarative_base()
-
-class Bank(Base):
-    __tablename__ = 'banks'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    slug = Column(String)
-    cards = relationship("Card", back_populates="bank")
-
-class Card(Base):
-    __tablename__ = 'cards'
-    id = Column(Integer, primary_key=True)
-    bank_id = Column(Integer, ForeignKey('banks.id'))
-    name = Column(String)
-    slug = Column(String)
-    is_active = Column(Boolean, name="is_active", default=True)
-    bank = relationship("Bank", back_populates="cards")
-    campaigns = relationship("Campaign", back_populates="card")
-
-class Sector(Base):
-    __tablename__ = 'sectors'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    slug = Column(String)
-    campaigns = relationship("Campaign", back_populates="sector")
-
-class Brand(Base):
-    __tablename__ = 'brands'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String)
-    slug = Column(String)
-    campaigns = relationship("CampaignBrand", back_populates="brand")
-
-class CampaignBrand(Base):
-    __tablename__ = 'test_campaign_brands' if os.environ.get('TEST_MODE') == '1' else 'campaign_brands'
-    campaign_id = Column(Integer, ForeignKey('campaigns.id'), primary_key=True)
-    brand_id = Column(UUID(as_uuid=True), ForeignKey('brands.id'), primary_key=True)
-    brand = relationship("Brand", back_populates="campaigns")
-    campaign = relationship("Campaign", back_populates="brands")
-
-class Campaign(Base):
-    __tablename__ = 'test_campaigns' if os.environ.get('TEST_MODE') == '1' else 'campaigns'
-    id = Column(Integer, primary_key=True)
-    card_id = Column(Integer, ForeignKey('cards.id'))
-    sector_id = Column(Integer, ForeignKey('sectors.id'))
-    slug = Column(String)
-    title = Column(String)
-    description = Column(String)
-    reward_text = Column(String, name="reward_text")
-    reward_value = Column(Numeric, name="reward_value")
-    reward_type = Column(String, name="reward_type")
-    conditions = Column(String)
-    eligible_cards = Column(String, name="eligible_cards")
-    image_url = Column(String, name="image_url")
-    start_date = Column(Date, name="start_date")
-    end_date = Column(Date, name="end_date")
-    is_active = Column(Boolean, name="is_active", default=True)
-    tracking_url = Column(String, name="tracking_url")
-    created_at = Column(DateTime, name="created_at", default=datetime.utcnow)
-    updated_at = Column(DateTime, name="updated_at", default=datetime.utcnow)
-    ai_marketing_text = Column(String, name="ai_marketing_text")
-    
-    card = relationship("Card", back_populates="campaigns")
-    sector = relationship("Sector", back_populates="campaigns")
-    brands = relationship("CampaignBrand", back_populates="campaign")
+from src.database import get_db_session
+from src.models import Bank, Card, Sector, Brand, Campaign, CampaignBrand
+from src.services.ai_parser import AIParser
+from src.utils.logger_utils import log_scraper_execution
 
 
 class ZiraatScraper:
@@ -121,17 +31,15 @@ class ZiraatScraper:
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         })
-        self.engine = create_engine(DATABASE_URL)
-        Session = sessionmaker(bind=self.engine)
-        self.db = Session()
+        self.db = get_db_session()
         self.parser = AIParser()
         
+        # Cache containers
+        self.sector_cache: Dict[str, Sector] = {}
+        self._load_cache()
+        
         # Ensure Bank & Card
-        self.bank = self.db.query(Bank).filter(
-            (Bank.slug == 'ziraat-bankasi') | 
-            (Bank.slug == 'ziraat') | 
-            (Bank.name.ilike('%Ziraat%'))
-        ).first()
+        self.bank = self.db.query(Bank).filter(Bank.slug == 'ziraat-bankasi').first()
 
         if not self.bank:
             self.bank = Bank(name='Ziraat Bankası', slug='ziraat-bankasi')
@@ -321,28 +229,9 @@ class ZiraatScraper:
             title = ai_data.get("title", "Kampanya")
             desc = ai_data.get("description", "")
             
-            # Map Sector
-            cat_map = {
-                "Market & Gıda": "Market",
-                "Giyim & Aksesuar": "Giyim",
-                "Restoran & Kafe": "Restoran & Kafe",
-                "Seyahat": "Seyahat",
-                "Turizm & Konaklama": "Seyahat",
-                "Elektronik": "Elektronik",
-                "Mobilya & Dekorasyon": "Mobilya & Dekorasyon",
-                "Kozmetik & Sağlık": "Kozmetik & Sağlık",
-                "E-Ticaret": "E-Ticaret",
-                "Otomotiv": "Otomotiv",
-                "Sigorta": "Sigorta",
-                "Eğitim": "Eğitim",
-                "Kültür & Sanat": "Eğlence",
-                "Diğer": "Diğer"
-            }
-            ai_cat = ai_data.get("sector", "Diğer")
-            db_sector_name = cat_map.get(ai_cat, "Diğer")
-            
-            sector = self.db.query(Sector).filter(Sector.slug == db_sector_name).first()
-            if not sector: sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
+            # Map Sector via AI Slug
+            ai_sector_slug = ai_data.get("sector")
+            sector = self._get_sector(ai_sector_slug)
             
             # Slug
             base_slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
@@ -439,7 +328,7 @@ class ZiraatScraper:
             
         except Exception as e:
             print(f"   ❌ Error processing {url}: {e}")
-            self.db.rollback()
+            if self.db: self.db.rollback()
             traceback.print_exc()
             return "error"
 
@@ -498,6 +387,22 @@ class ZiraatScraper:
              
         print("🏁 Finished.")
 
+
+    def _load_cache(self):
+        """Load sectors into cache for fast lookup"""
+        for s in self.db.query(Sector).all():
+            self.sector_cache[s.slug] = s
+            self.sector_cache[s.name.lower()] = s
+
+    def _get_sector(self, slug: str) -> Optional[Sector]:
+        if not slug:
+            return self.sector_cache.get("diger")
+        return self.sector_cache.get(slug.lower()) or self.sector_cache.get("diger")
+
 if __name__ == "__main__":
-    scraper = ZiraatScraper()
-    scraper.run()
+    try:
+        scraper = ZiraatScraper()
+        scraper.run()
+    finally:
+        if hasattr(scraper, 'db') and scraper.db:
+            scraper.db.close()

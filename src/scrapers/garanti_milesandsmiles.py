@@ -1,6 +1,9 @@
-# pyre-ignore-all-errors
-# type: ignore
-
+import sys
+import os
+# Path setup
+project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import requests
 import time
@@ -17,13 +20,6 @@ from src.services.ai_parser import parse_api_campaign
 from src.utils.slug_generator import get_unique_slug
 from src.utils.cache_manager import clear_cache
 from sqlalchemy.exc import IntegrityError
-import sys
-import os
-
-# Add project root to sys.path for linter/runtime path resolution
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
 class GarantiMilesAndSmilesScraper:
     """Scraper for Garanti Miles&Smiles campaigns (UIkit based)."""
@@ -41,6 +37,29 @@ class GarantiMilesAndSmilesScraper:
         self.session = requests.Session()
         self.bank = None
         self.card = None
+        
+        # Initialize bank and card from DB
+        with get_db_session() as db:
+            bank = db.query(Bank).filter(Bank.slug == "garanti-bbva").first()
+            if not bank:
+                bank = Bank(name="Garanti BBVA", slug="garanti-bbva", is_active=True)
+                db.add(bank)
+                db.commit()
+                db.refresh(bank)
+                print(f"✅ Created bank: Garanti BBVA")
+            self.bank = bank
+            
+            card = db.query(Card).filter(
+                Card.bank_id == self.bank.id,
+                Card.slug == "garanti-miles-smiles"
+            ).first()
+            if not card:
+                card = Card(bank_id=self.bank.id, name="Garanti Miles&Smiles", slug="garanti-miles-smiles", is_active=True)
+                db.add(card)
+                db.commit()
+                db.refresh(card)
+                print(f"✅ Created card: Garanti Miles&Smiles")
+            self.card = card
     
     def _get_or_create_bank(self):
         """Get or create Garanti BBVA bank"""
@@ -337,10 +356,6 @@ class GarantiMilesAndSmilesScraper:
         print("=" * 60)
         
         try:
-            # Setup
-            self._get_or_create_bank()
-            self._get_or_create_card()
-            
             # Fetch campaign list
             campaign_urls = self._fetch_campaign_list()
             

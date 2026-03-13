@@ -1,6 +1,9 @@
-# pyre-ignore-all-errors
-# type: ignore
-
+import sys
+import os
+# Path setup
+project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import requests
 import time
@@ -27,9 +30,28 @@ class YapikrediWorldScraper:
     CARD_NAME = 'World' # The specific card program
     
     def __init__(self):
-        self.db: Session = get_db_session()
-        self.bank = self._get_or_create_bank()
-        self.card = self._get_or_create_card()
+        self.bank = None
+        self.card = None
+        
+        # Initialize bank and card from DB
+        with get_db_session() as db:
+            bank = db.query(Bank).filter(Bank.slug == "yapi-kredi").first()
+            if not bank:
+                print(f"Creating bank: {self.BANK_NAME}")
+                bank = Bank(name=self.BANK_NAME, slug="yapi-kredi", logo_url="/logos/cards/yapikredi.png", is_active=True)
+                db.add(bank)
+                db.commit()
+                db.refresh(bank)
+            self.bank = bank
+            
+            card = db.query(Card).filter(Card.slug == "world", Card.bank_id == self.bank.id).first()
+            if not card:
+                print(f"Creating card: {self.CARD_NAME}")
+                card = Card(name=self.CARD_NAME, bank_id=self.bank.id, slug="world", card_type="credit", logo_url="/logos/cards/yapikrediworld.png", is_active=True)
+                db.add(card)
+                db.commit()
+                db.refresh(card)
+            self.card = card
         
     def _get_or_create_bank(self) -> Bank:
         bank = self.db.query(Bank).filter(Bank.slug == "yapi-kredi").first()
@@ -100,10 +122,11 @@ class YapikrediWorldScraper:
         else:
             full_url = f"{self.BASE_URL}{url_suffix}"
         
-        existing = self.db.query(Campaign).filter(Campaign.tracking_url == full_url).first()
-        if existing:
-            print(f"   Skipping existing: {title}")
-            return "skipped"
+        with get_db_session() as db:
+            existing = db.query(Campaign).filter(Campaign.tracking_url == full_url).first()
+            if existing:
+                print(f"   Skipping existing: {title}")
+                return "skipped"
 
         print(f"   Processing: {title}")
         
@@ -156,43 +179,19 @@ class YapikrediWorldScraper:
     def _save_campaign(self, title: str, details_text: str, image_url: Optional[str],
                        tracking_url: str, start_date, end_date, ai_data: Dict[str, Any]):
         try:
-            # Map sector
-            sector_name = ai_data.get('sector', 'Diğer')
-            sector = self.db.query(Sector).filter((Sector.slug == sector_name) | (Sector.name.ilike(sector_name))).first()
-            if not sector:
-                sector = self.db.query(Sector).filter(Sector.slug == 'diger').first()
+            with get_db_session() as db:
+                # Map sector
+                sector_name = ai_data.get('sector', 'Diğer')
+                sector = db.query(Sector).filter((Sector.slug == sector_name) | (Sector.name.ilike(sector_name))).first()
+                if not sector:
+                    sector = db.query(Sector).filter(Sector.slug == 'diger').first()
+                sector_id = sector.id if sector else None
 
-            # Build conditions: prepend metadata lines with markers
-            participation = ai_data.get('participation', '')
-            cards_list = ai_data.get('cards', [])
-            conditions_lines = ai_data.get('conditions', [])
-            
-            meta_lines = []
-            if participation and participation != 'Detayları İnceleyin':
-                meta_lines.append(f"KATILIM: {participation}")
-            if cards_list:
-                meta_lines.append(f"KARTLAR: {', '.join(cards_list)}")
-            
-            all_lines = meta_lines + conditions_lines
-
-            # Extract SEO-friendly slug from URL if available
-            # e.g. /kampanyalar/uzun-seo-basligi -> uzun-seo-basligi
-            seo_slug = None
-            if tracking_url:
-                try:
-                    # tracking_url is full url: https://.../kampanyalar/slug
-                    # But we passed `full_url` as tracking_url, which was constructed from url_suffix
-                    # Let's extract from tracking_url
-                    path = tracking_url.split('worldcard.com.tr')[-1] # /kampanyalar/slug
-                    parts = path.strip('/').split('/')
-                    if parts:
-                        seo_slug = parts[-1]
-                except:
-                    pass
-
-            # Use seo_slug if valid, otherwise fallback to title
-            slug_source = seo_slug if seo_slug and len(seo_slug) > 5 else title
-            slug = get_unique_slug(slug_source, self.db, Campaign)
+            # Prepare unique slug
+            with get_db_session() as db:
+                # Use seo_slug if valid, otherwise fallback to title
+                slug_source = seo_slug if seo_slug and len(seo_slug) > 5 else title
+                slug = get_unique_slug(slug_source, db, Campaign)
 
             campaign = Campaign(
                 slug=slug,                                                # ← SEO slug
@@ -214,42 +213,41 @@ class YapikrediWorldScraper:
                 updated_at=datetime.utcnow()
             )
             
-            self.db.add(campaign)
-            self.db.commit()
-            print(f"   ✅ Saved: {campaign.title}")
+            with get_db_session() as db:
+                db.add(campaign)
+                db.commit()
+                print(f"   ✅ Saved: {campaign.title}")
 
-            # Process Brands
-            if ai_data.get('brands'):
-                raw_brands = ai_data.get('brands')
-                clean_brand_list = cleanup_brands(raw_brands)
-                
-                for brand_name in clean_brand_list:
-                    # Check if brand exists
-                    brand = self.db.query(Brand).filter(Brand.name == brand_name).first()
-                    if not brand:
-                        # Create new brand
-                        # Use campaign's sector or default
-                        brand = Brand(
-                            name=brand_name, 
-                            slug=get_unique_slug(brand_name, self.db, Brand),
-                            is_active=True
-                        )
-                        self.db.add(brand)
-                        self.db.commit()
-                        print(f"      ✨ Created Brand: {brand.name}")
+                # Process Brands
+                if ai_data.get('brands'):
+                    raw_brands = ai_data.get('brands')
+                    clean_brand_list = cleanup_brands(raw_brands)
                     
-                    # Link to Campaign
-                    # Check if link exists (idempotency)
-                    link = self.db.query(CampaignBrand).filter(
-                        CampaignBrand.campaign_id == campaign.id,
-                        CampaignBrand.brand_id == brand.id
-                    ).first()
-                    
-                    if not link:
-                        link = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)
-                        self.db.add(link)
-                        self.db.commit()
-                        print(f"      🔗 Linked Brand: {brand.name}")
+                    for brand_name in clean_brand_list:
+                        # Check if brand exists
+                        brand = db.query(Brand).filter(Brand.name == brand_name).first()
+                        if not brand:
+                            # Create new brand
+                            brand = Brand(
+                                name=brand_name, 
+                                slug=get_unique_slug(brand_name, db, Brand),
+                                is_active=True
+                            )
+                            db.add(brand)
+                            db.commit()
+                            print(f"      ✨ Created Brand: {brand.name}")
+                        
+                        # Link to Campaign
+                        link = db.query(CampaignBrand).filter(
+                            CampaignBrand.campaign_id == campaign.id,
+                            CampaignBrand.brand_id == brand.id
+                        ).first()
+                        
+                        if not link:
+                            link = CampaignBrand(campaign_id=campaign.id, brand_id=brand.id)
+                            db.add(link)
+                            db.commit()
+                            print(f"      🔗 Linked Brand: {brand.name}")
             
             return "saved"
         except Exception as e:
@@ -336,17 +334,18 @@ class YapikrediWorldScraper:
              status = "PARTIAL" if (success_count > 0 or skipped_count > 0) else "FAILED"
              
         try:
-            from src.utils.logger_utils import log_scraper_execution
-            log_scraper_execution(
-                 db=self.db,
-                 scraper_name="yapikredi-world",
-                 status=status,
-                 total_found=total_found,
-                 total_saved=success_count,
-                 total_skipped=skipped_count,
-                 total_failed=failed_count,
-                 error_details={"errors": error_details} if error_details else None
-            )
+            with get_db_session() as db:
+                from src.utils.logger_utils import log_scraper_execution
+                log_scraper_execution(
+                     db=db,
+                     scraper_name="yapikredi-world",
+                     status=status,
+                     total_found=total_found,
+                     total_saved=success_count,
+                     total_skipped=skipped_count,
+                     total_failed=failed_count,
+                     error_details={"errors": error_details} if error_details else None
+                )
         except Exception as le:
              print(f"⚠️ Could not save scraper log: {le}")
         

@@ -14,14 +14,10 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 # Path setup - same as ziraat.py
-current_dir = os.path.dirname(os.path.abspath(__file__))  # src/scrapers
-project_root = os.path.dirname(os.path.dirname(current_dir))  # project root
+# Path setup
+project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-# Also add src dir for relative imports
-src_dir = os.path.dirname(current_dir)
-if src_dir not in sys.path:
-    sys.path.insert(1, src_dir)
 
 print(f"[DEBUG] project_root: {project_root}")
 if isinstance(sys.path, list):
@@ -478,6 +474,7 @@ class IsbankMaximumScraper:
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )
+            if self.session is None: return None
             self.session.add(campaign)
             self.session.commit()
 
@@ -604,10 +601,10 @@ class IsbankMaximumScraper:
                         
                     saved_id = self._save_campaign(res_data, bank_id, card_id)
                     if saved_id:
-                        success = int(success or 0) + 1  # type: ignore
+                        success += 1
                         results.append(saved_id)
                     else:
-                        failed = int(failed or 0) + 1  # type: ignore
+                        failed += 1
                         error_details.append({"url": url, "error": "Save returned None"})
                         
                 except Exception as e:

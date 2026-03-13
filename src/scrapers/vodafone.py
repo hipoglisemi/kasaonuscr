@@ -306,6 +306,7 @@ class VodafoneScraper:
         for c in self.db.query(Card).filter(Card.bank_id == bank.id).all():
             self.card_cache[c.name.lower()] = c
         for s in self.db.query(Sector).all():
+            self.sector_cache[s.slug] = s
             self.sector_cache[s.name.lower()] = s
         for b in self.db.query(Brand).filter(Brand.is_active == True).limit(500).all():
             self.brand_cache[b.name.lower()] = b
@@ -319,9 +320,9 @@ class VodafoneScraper:
         self.card_cache[key] = card
         return card
 
-    def _get_sector(self, name: str) -> Optional[Sector]:
-        if not name: return None
-        return self.sector_cache.get(name.lower()) or self.sector_cache.get("diğer")
+    def _get_sector(self, slug: str) -> Optional[Sector]:
+        if not slug: return None
+        return self.sector_cache.get(slug.lower()) or self.sector_cache.get("diğer")
 
     def _get_or_create_brands(self, names: List[str], sector_id: Optional[int]) -> List[uuid.UUID]:
         ids = []

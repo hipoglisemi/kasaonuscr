@@ -1,8 +1,11 @@
-# pyre-ignore-all-errors
-# type: ignore
+import sys
+import os
+# Path setup
+project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-
-import requests # type: ignore
+import requests
 from bs4 import BeautifulSoup # type: ignore
 from urllib.parse import urljoin
 import time
@@ -10,12 +13,12 @@ import random
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
-from src.models import Campaign, CampaignBrand # type: ignore
-from src.database import get_db_session # type: ignore
-from src.utils.slug_generator import generate_slug # type: ignore
-from src.services.ai_parser import parse_api_campaign # type: ignore
-from src.services.brand_normalizer import normalize_brand_name # type: ignore
-from sqlalchemy.exc import IntegrityError # type: ignore
+from src.models import Campaign, CampaignBrand, Sector, Card, Brand
+from src.database import get_db_session
+from src.utils.slug_generator import generate_slug
+from src.services.ai_parser import parse_api_campaign
+from src.services.brand_normalizer import normalize_brand_name
+from sqlalchemy.exc import IntegrityError
 
 class AkbankBaseScraper:
     """

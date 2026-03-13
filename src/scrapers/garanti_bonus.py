@@ -1,6 +1,9 @@
-# pyre-ignore-all-errors
-# type: ignore
-
+import sys
+import os
+# Path setup
+project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import requests
 import time
@@ -39,6 +42,29 @@ class GarantiBonusScraper:
         self.session = requests.Session()
         self.bank = None
         self.card = None
+        
+        # Initialize bank and card from DB
+        with get_db_session() as db:
+            bank = db.query(Bank).filter(Bank.slug == "garanti-bbva").first()
+            if not bank:
+                bank = Bank(name="Garanti BBVA", slug="garanti-bbva", is_active=True)
+                db.add(bank)
+                db.commit()
+                db.refresh(bank)
+                print(f"✅ Created bank: Garanti BBVA")
+            self.bank = bank
+            
+            card = db.query(Card).filter(
+                Card.bank_id == self.bank.id,
+                Card.slug == "garanti-bonus"
+            ).first()
+            if not card:
+                card = Card(bank_id=self.bank.id, name="Garanti Bonus", slug="garanti-bonus", is_active=True)
+                db.add(card)
+                db.commit()
+                db.refresh(card)
+                print(f"✅ Created card: Garanti Bonus")
+            self.card = card
     
     def _get_or_create_bank(self):
         """Get or create Garanti BBVA bank"""
@@ -467,10 +493,6 @@ class GarantiBonusScraper:
         
         try:
             from src.utils.logger_utils import log_scraper_execution
-            
-            # Setup
-            self._get_or_create_bank()
-            self._get_or_create_card()
             
             # Fetch campaign list
             campaign_urls = self._fetch_campaign_list()
