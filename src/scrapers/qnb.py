@@ -1,7 +1,7 @@
 import sys
 import os
 # Path setup
-project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -132,8 +132,9 @@ class QNBScraper:
                 if item.get("Id") and item.get("HasImage"):
                     image_url = f"{self.BASE_URL}/medium/Campaign-DetailImage-{item.get('Id')}.vsf"
 
-                slug = get_unique_slug(ai_data.get('short_title') or ai_data.get('title'), db, Campaign)
-
+                if not self.card_id:
+                    return "error"
+                    
                 campaign = Campaign(
                     card_id=self.card_id,
                     sector_id=sector_id,
@@ -179,10 +180,10 @@ class QNBScraper:
         print(f"🚀 Starting QNB Scraper...")
         items = self._fetch_campaigns(limit=limit)
         
-        success = 0
-        skipped = 0
-        failed = 0
-        error_details = []
+        success: int = 0
+        skipped: int = 0
+        failed: int = 0
+        error_details: List[Dict[str, Any]] = []
 
         for item in items:
             try:

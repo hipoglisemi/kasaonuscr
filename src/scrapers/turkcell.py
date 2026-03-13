@@ -10,8 +10,10 @@ from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urljoin
 
+import sys
+import os
 # Path setup to ensure imports work correctly
-project_root = "/Users/hipoglisemi/Desktop/kartavantaj-scraper"
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -69,10 +71,10 @@ class TurkcellScraper:
     async def _run_async(self):
         print(f"🚀 Starting Turkcell Scraper...")
         
-        success_count = 0
-        failed_count = 0
-        total_found = 0
-        error_details = []
+        success_count: int = 0
+        failed_count: int = 0
+        total_found: int = 0
+        error_details: List[Dict[str, Any]] = []
 
         try:
             async with async_playwright() as p:
@@ -181,8 +183,8 @@ class TurkcellScraper:
             }''')
             
             headers = await page.query_selector_all('div.ant-collapse-header')
-            content_parts = []
-            participation_text = ""
+            content_parts: List[str] = []
+            participation_text: str = ""
             
             for header in headers:
                 try:
