@@ -1,16 +1,12 @@
-
-
-
 import os
 import re  # type: ignore # pyre-ignore[21]
 import sys
 import time  # type: ignore # pyre-ignore[21]
 import json  # type: ignore # pyre-ignore[21]
 import requests  # type: ignore # pyre-ignore[21]
-from typing import Optional  # type: ignore # pyre-ignore[21]
+from typing import Optional, List  # type: ignore # pyre-ignore[21]
 from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
 from dotenv import load_dotenv  # type: ignore # pyre-ignore[21]
-from datetime import datetime  # type: ignore # pyre-ignore[21]
 
 # Ensure src is in path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -53,7 +49,7 @@ HEADERS = {
 
 def slugify(text: str) -> str:
     text = text.lower()
-    tr_map = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosucgiosu")
+    tr_map = str.maketrans("çğıöşüâîûÇĞİÖŞÜÂÎÛ", "cgiosuaiucgiosuaiu")
     text = text.translate(tr_map)
     text = re.sub(r'[^a-z0-9\s-]', '', text)
     text = re.sub(r'[\s-]+', '-', text).strip('-')
@@ -66,7 +62,7 @@ def html_to_text(html_content: str) -> str:
     soup = BeautifulSoup(html_content, "html.parser")
     for tag in soup(["script", "style"]):  # type: ignore # pyre-ignore[16,6]
         tag.decompose()
-    lines = [l.strip() for l in soup.get_text(separator="\n").splitlines() if l.strip()]
+    lines = [line.strip() for line in soup.get_text(separator="\n").splitlines() if line.strip()]
     return "\n".join(lines)  # type: ignore # pyre-ignore[7]
 
 
@@ -184,21 +180,24 @@ class TEBScraper:
         except Exception:
             return None  # type: ignore # pyre-ignore[7]
 
-    def _save_to_db(self, data: dict, brands: list = None):
+    def _save_to_db(self, data: dict, brands: Optional[List[str]] = None):
         """Save or update campaign in DB."""
         campaign_id = None
         try:
             with self.engine.begin() as conn:
                 existing = conn.execute(
                     text("SELECT id FROM campaigns WHERE tracking_url = :url"),
-                    {"url": data["tracking_url"]}  # type: ignore # pyre-ignore[16,6]
+                    {"url": data.get("tracking_url")}
                 ).fetchone()
 
                 if existing:
-                    print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {data['title'][:50]}")  # type: ignore # pyre-ignore[16,6]
-                    return "skipped"  # type: ignore # pyre-ignore[7]
+                    # Slicing str directly from function result can confuse some linters
+                    title_preview = str(data.get('title') or '')[:50]  # type: ignore
+                    print(f"   ⏭️ Skipped (Already exists, preserving manual edits): {title_preview}")
+                    return "skipped"
                 else:
-                    print(f"   ✨ Creating: {data['title'][:50]}")  # type: ignore # pyre-ignore[16,6]
+                    title_preview = str(data.get('title') or '')[:50]  # type: ignore
+                    print(f"   ✨ Creating: {title_preview}")
                     result = conn.execute(text("""
                         INSERT INTO campaigns (
                             title, description, slug, image_url, tracking_url, is_active,
@@ -248,22 +247,23 @@ class TEBScraper:
                             """), {"campaign_id": campaign_id, "brand_id": brand_id})
                             print(f"      🔗 Linked Brand: {brand_name}")
 
-            return "saved"  # type: ignore # pyre-ignore[7]
+            return "saved"
         except Exception as e:
             print(f"   ❌ DB Error: {e}")
-            return "error"  # type: ignore # pyre-ignore[7]
+            return "error"
 
     def _process_item(self, item: dict, card_id: int, card_name: str):
         """Process a single campaign item from the API."""
         title = (item.get("title") or "").strip()
         if not title:
             print("   ⚠️  Skipping: No title.")
-            return "skipped"  # type: ignore # pyre-ignore[7]
+            return "skipped"
 
         tracking_url = item.get("weblink") or ""
         if not tracking_url:
-            print(f"   ⚠️  Skipping: No weblink for '{title[:40]}'")  # type: ignore # pyre-ignore[16,6]
-            return "skipped"  # type: ignore # pyre-ignore[7]
+            title_preview = str(title or '')[:40]  # type: ignore
+            print(f"   ⚠️  Skipping: No weblink for '{title_preview}'")
+            return "skipped"
 
         # Database Pre-check (Skip Logic)
         try:
@@ -274,7 +274,7 @@ class TEBScraper:
                 ).fetchone()
                 if existing:
                     print(f"   ⏭️ Skipped (Already exists): {tracking_url}")
-                    return "skipped"  # type: ignore # pyre-ignore[7]
+                    return "skipped"
         except Exception as e:
             print(f"   ⚠️ DB Pre-check error: {e}")
 
@@ -286,8 +286,8 @@ class TEBScraper:
         )
 
         # Dates come directly from API — no AI needed
-        start_date = parse_teb_date(item.get("startDate"))
-        end_date = parse_teb_date(item.get("endDate"))
+        start_date = parse_teb_date(str(item.get("startDate")))
+        end_date = parse_teb_date(str(item.get("endDate")))
 
         # Content for AI parsing
         content_html = item.get("content") or ""
@@ -317,22 +317,23 @@ class TEBScraper:
                 ai_data = {}
 
         # Build conditions
-        conditions_lines = []
+        conditions_lines: List[str] = []
         participation = ai_data.get("participation") or ""
         if participation:
-            conditions_lines.append(f"KATILIM: {participation}")
+            conditions_lines.append(f"KATILIM: {str(participation)}")
 
         # eligible_cards: ai_parser listesi döndürür ama guard ekle
-        cards_raw = ai_data.get("cards", [])
+        cards_raw = ai_data.get("cards") or []
         if isinstance(cards_raw, str):
             cards_raw = [c.strip() for c in cards_raw.split(",") if c.strip()]
-        eligible_cards_list = cards_raw
+        eligible_cards_list: List[str] = cards_raw
 
         if eligible_cards_list:
-            conditions_lines.append(f"GEÇERLİ KARTLAR: {', '.join(eligible_cards_list)}")
+            cond_str = f"GEÇERLİ KARTLAR: {', '.join(eligible_cards_list)}"
+            conditions_lines.append(cond_str)
 
         # conditions listesi
-        conds_raw = ai_data.get("conditions", [])
+        conds_raw = ai_data.get("conditions") or []
         if isinstance(conds_raw, str):
             conds_raw = [c.strip() for c in conds_raw.split("\n") if c.strip()]
         conditions_lines.extend(conds_raw)
@@ -366,7 +367,7 @@ class TEBScraper:
             "reward_text": ai_data.get("reward_text"),
             "reward_value": ai_data.get("reward_value"),
             "reward_type": ai_data.get("reward_type"),
-                            "clean_text": ai_data.get("_clean_text"),
+            "clean_text": ai_data.get("_clean_text"),
         }
 
         return self._save_to_db(campaign_data, ai_data.get("brands", []))  # type: ignore # pyre-ignore[7]
@@ -388,12 +389,12 @@ class TEBScraper:
 
         # Filter by card type if requested
         if card_filter != "all":
-            before = len(items)
+            before_filter_count = len(items)
             items = [
-                i for i in items
-                if card_filter.lower() in (i.get("webCategory") or "").lower()
+                item_data for item_data in items
+                if card_filter.lower() in (item_data.get("webCategory") or "").lower()
             ]
-            print(f"   🔍 Filtered to {len(items)} campaigns (from {before}) by '{card_filter}'")
+            print(f"   🔍 Filtered to {len(items)} campaigns (from {before_filter_count}) by '{card_filter}'")
 
         items = items[:limit]  # type: ignore # pyre-ignore[16,6]
         print(f"\n   🎯 Processing {len(items)} campaigns...\n")
@@ -433,30 +434,30 @@ class TEBScraper:
 
             time.sleep(0.5)
 
-        print(f"\n🏁 TEB Scraper Finished.")
+        print("\n🏁 TEB Scraper Finished.")
         print(f"✅ Özet: {len(items)} bulundu, {success} eklendi, {skipped} atlandı, {failed} hata aldı.")
         
         status = "SUCCESS"
         if failed > 0:  # type: ignore # pyre-ignore[58]
-             status = "PARTIAL" if (success > 0 or skipped > 0) else "FAILED"  # type: ignore # pyre-ignore[58]
+            status = "PARTIAL" if (success > 0 or skipped > 0) else "FAILED"  # type: ignore # pyre-ignore[58]
              
         try:
             from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
             from sqlalchemy.orm import sessionmaker  # type: ignore # pyre-ignore[21]
             SessionLocal = sessionmaker(bind=self.engine)
             with SessionLocal() as db:
-                 log_scraper_execution(
-                      db=db,
-                      scraper_name="teb",
-                      status=status,
-                      total_found=len(items),
-                      total_saved=success,
-                      total_skipped=skipped,
-                      total_failed=failed,
-                      error_details={"errors": error_details} if error_details else None
-                 )
+                log_scraper_execution(
+                    db=db,
+                    scraper_name="teb",
+                    status=status,
+                    total_found=len(items),
+                    total_saved=success,
+                    total_skipped=skipped,
+                    total_failed=failed,
+                    error_details={"errors": error_details} if error_details else None
+                )
         except Exception as le:
-             print(f"⚠️ Could not save scraper log: {le}")
+            print(f"⚠️ Could not save scraper log: {le}")
 
 
 if __name__ == "__main__":

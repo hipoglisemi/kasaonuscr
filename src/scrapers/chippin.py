@@ -46,7 +46,7 @@ CARD_DEFINITIONS = {
 
 def slugify(text: str) -> str:
     text = text.lower()
-    tr_map = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosucgiosu")
+    tr_map = str.maketrans("çğıöşüâîûÇĞİÖŞÜÂÎÛ", "cgiosuaiucgiosuaiu")
     text = text.translate(tr_map)
     text = re.sub(r'[^a-z0-9\s-]', '', text)
     text = re.sub(r'[\s-]+', '-', text).strip('-')

@@ -1,12 +1,8 @@
-
-
-
 import os
 import re  # type: ignore # pyre-ignore[21]
 import sys
 import time  # type: ignore # pyre-ignore[21]
-import requests  # type: ignore # pyre-ignore[21]
-from typing import List, Optional  # type: ignore # pyre-ignore[21]
+from typing import List, Optional, Any  # type: ignore # pyre-ignore[21]
 from bs4 import BeautifulSoup  # type: ignore # pyre-ignore[21]
 from dotenv import load_dotenv  # type: ignore # pyre-ignore[21]
 
@@ -52,7 +48,7 @@ CARD_DEFINITIONS = {
 
 def slugify(text: str) -> str:
     text = text.lower()
-    tr_map = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosucgiosu")
+    tr_map = str.maketrans("çğıöşüâîûÇĞİÖŞÜÂÎÛ", "cgiosuaiucgiosuaiu")
     text = text.translate(tr_map)
     text = re.sub(r'[^a-z0-9\s-]', '', text)
     text = re.sub(r'[\s-]+', '-', text).strip('-')
@@ -65,7 +61,7 @@ def html_to_text(html_content: str) -> str:
     soup = BeautifulSoup(html_content, "html.parser")
     for tag in soup(["script", "style", "noscript"]):  # type: ignore # pyre-ignore[16,6]
         tag.decompose()
-    lines = [l.strip() for l in soup.get_text(separator="\n").splitlines() if l.strip()]
+    lines = [line.strip() for line in soup.get_text(separator="\n").splitlines() if line.strip()]
     return "\n".join(lines)  # type: ignore # pyre-ignore[7]
 
 
@@ -93,11 +89,11 @@ class TurkiyeFinansScraper:
     def __init__(self):
         self.engine = create_engine(DATABASE_URL)
         self.ai_parser = AIParser() if GEMINI_API_KEY else None
-        self.bank_id = None
-        self._card_cache = {}
-        self.pw = None
-        self.browser = None
-        self.page = None
+        self.bank_id: Optional[int] = None
+        self._card_cache: dict = {}
+        self.pw: Any = None
+        self.browser: Any = None
+        self.page: Any = None
 
     def _start_browser(self):
         """Initializes Playwright browser."""
@@ -286,17 +282,17 @@ class TurkiyeFinansScraper:
             for tag in ["h1", "h2", "h3"]:  # type: ignore # pyre-ignore[16,6]
                 el = soup.find(tag)
                 if el:
-                    t = el.get_text(strip=True)
-                    if t and t.lower() not in GENERIC_TITLES:
-                        title = t
+                    found_title_text = el.get_text(strip=True)
+                    if found_title_text and found_title_text.lower() not in GENERIC_TITLES:
+                        title = found_title_text
                         break
 
             if not title and soup.title:
-                t = soup.title.string
-                if t:
-                    t = t.replace("- Happy Card", "").replace("Türkiye Finans Happy Kredi Kartları Kampanyalar", "").strip()
-                    if t and t.lower() not in GENERIC_TITLES:
-                        title = t
+                page_title_string = soup.title.string  # Fix: Ambiguous variable name 't'
+                if page_title_string:
+                    page_title_string = page_title_string.replace("- Happy Card", "").replace("Türkiye Finans Happy Kredi Kartları Kampanyalar", "").strip()
+                    if page_title_string and page_title_string.lower() not in GENERIC_TITLES:
+                        title = page_title_string
 
             if not title or title.lower() in GENERIC_TITLES:
                 print(f"      ⚠️ Valid title not found, skipping {url}")
@@ -349,7 +345,8 @@ class TurkiyeFinansScraper:
             ai_data = {}
             if self.ai_parser and content_text:
                 try:
-                    ai_data = self.ai_parser.parse_campaign_data(
+                    parser: Any = self.ai_parser
+                    ai_data = parser.parse_campaign_data(  # type: ignore
                         raw_text=content_text,
                         title=title,
                         bank_name=BANK_NAME,
@@ -394,14 +391,14 @@ class TurkiyeFinansScraper:
                     "tracking_url": url,
                     "start_date": ai_data.get("start_date"),
                     "end_date": ai_data.get("end_date"),
-                    "sector_id": self._resolve_sector_by_name(ai_data.get("sector")) or self._resolve_sector_by_name("Diğer"),
+                    "sector_id": self._resolve_sector_by_name(str(ai_data.get("sector") or "Diğer")) or self._resolve_sector_by_name("Diğer"),
                     "card_id": card_id,
                     "conditions": "\n".join(conditions_lines) if conditions_lines else None,
                     "eligible_cards": eligible_str,
                     "reward_text": ai_data.get("reward_text"),
                     "reward_value": ai_data.get("reward_value"),
                     "reward_type": ai_data.get("reward_type"),
-                            "clean_text": ai_data.get("_clean_text"),
+                    "clean_text": ai_data.get("_clean_text"),
                     "slug": slug,
                 }
 
@@ -523,25 +520,25 @@ class TurkiyeFinansScraper:
             
             status = "SUCCESS"
             if total_failed > 0:  # type: ignore # pyre-ignore[58]
-                 status = "PARTIAL" if (total_saved > 0 or total_skipped > 0) else "FAILED"  # type: ignore # pyre-ignore[58]
+                status = "PARTIAL" if (total_saved > 0 or total_skipped > 0) else "FAILED"  # type: ignore # pyre-ignore[58]
                  
             try:
                 from src.utils.logger_utils import log_scraper_execution  # type: ignore # pyre-ignore[21]
                 from sqlalchemy.orm import sessionmaker  # type: ignore # pyre-ignore[21]
                 SessionLocal = sessionmaker(bind=self.engine)
                 with SessionLocal() as db:
-                     log_scraper_execution(
-                          db=db,
-                          scraper_name="turkiye-finans",
-                          status=status,
-                          total_found=total_found,
-                          total_saved=total_saved,
-                          total_skipped=total_skipped,
-                          total_failed=total_failed,
-                          error_details={"errors": error_details} if error_details else None
-                     )
+                    log_scraper_execution(
+                        db=db,
+                        scraper_name="turkiye-finans",
+                        status=status,
+                        total_found=total_found,
+                        total_saved=total_saved,
+                        total_skipped=total_skipped,
+                        total_failed=total_failed,
+                        error_details={"errors": error_details} if error_details else None
+                    )
             except Exception as le:
-                 print(f"⚠️ Could not save scraper log: {le}")
+                print(f"⚠️ Could not save scraper log: {le}")
 
         except Exception as e:
             print(f"❌ Fatal error: {e}")
@@ -550,8 +547,8 @@ class TurkiyeFinansScraper:
                 from sqlalchemy.orm import sessionmaker  # type: ignore # pyre-ignore[21]
                 SessionLocal = sessionmaker(bind=self.engine)
                 with SessionLocal() as db:
-                     log_scraper_execution(db, "turkiye-finans", "FAILED", total_found, total_saved, total_skipped, total_failed + 1, {"error": str(e), "details": error_details})
-            except:
+                    log_scraper_execution(db, "turkiye-finans", "FAILED", total_found, total_saved, total_skipped, total_failed + 1, {"error": str(e), "details": error_details})
+            except Exception:
                 pass
         finally:
             self._stop_browser()
